@@ -155,7 +155,7 @@ static void InitFrameBuffer(frame_buffer *Buffer) {
   Buffer->Resolution.Dimension.X = 1200;
   Buffer->Resolution.Dimension.Y = 800;
   memsize PixelCount = Buffer->Resolution.Dimension.X * Buffer->Resolution.Dimension.Y;
-  Buffer->Pixels = (ui8*)malloc(PixelCount*3);
+  Buffer->Pixels = (color*)malloc(sizeof(color) * PixelCount);
 }
 
 static void TerminateFrameBuffer(frame_buffer *Buffer) {

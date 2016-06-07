@@ -31,10 +31,10 @@ void Draw(frame_buffer *Buffer, scene *Scene) {
       v3fp32 Difference = WorldPixelPosition - Scene->Camera.Position;
       Ray.Direction = v3fp32::Normalize(Difference);
 
-      ui8 *Pixel = Buffer->Pixels + (ScreenPixelYOffset + X) * 3;
-      Pixel[0] = 255 * (0.5f + Difference.Y);
-      Pixel[1] = 0;
-      Pixel[2] = 0;
+      color *Pixel = Buffer->Pixels + ScreenPixelYOffset + X;
+      Pixel->R = 255 * (0.5f + Difference.Y);
+      Pixel->G = 0;
+      Pixel->B = 0;
     }
   }
 }

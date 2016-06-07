@@ -7,6 +7,12 @@ struct camera {
   fp32 FOV;
 };
 
+struct color {
+  ui8 R;
+  ui8 G;
+  ui8 B;
+};
+
 struct scene {
   camera Camera;
 };
@@ -17,7 +23,7 @@ struct resolution {
 
 struct frame_buffer {
   resolution Resolution;
-  ui8 *Pixels;
+  color *Pixels;
 };
 
 void Draw(frame_buffer *Buffer, scene *Scene);
