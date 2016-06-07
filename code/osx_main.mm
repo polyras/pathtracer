@@ -11,6 +11,7 @@ struct osx_state {
   NSOpenGLContext *OGLContext;
   GLuint TextureHandle;
   frame_buffer FrameBuffer;
+  scene Scene;
 };
 
 @interface PathtracerAppDelegate : NSObject <NSApplicationDelegate>
@@ -161,12 +162,24 @@ static void TerminateFrameBuffer(frame_buffer *Buffer) {
   free(Buffer->Pixels);
 }
 
+static void InitScene(scene *Scene) {
+  camera *Cam = &Scene->Camera;
+
+  Cam->Position.Clear();
+
+  Cam->Direction.Set(0, 0, 1);
+  Cam->Left.Set(1, 0, 0);
+  Cam->FOV = DegToRad(60);
+}
+
 int main() {
   osx_state State;
   InitFrameBuffer(&State.FrameBuffer);
   State.Running = true;
   State.Window = nullptr;
   State.OGLContext = nullptr;
+
+  InitScene(&State.Scene);
 
   NSApplication *App = [NSApplication sharedApplication];
   PathtracerAppDelegate *AppDelegate = [[PathtracerAppDelegate alloc] init];
@@ -197,7 +210,7 @@ int main() {
     ProcessOSXMessages();
 
     if(State.Window.occlusionState & NSWindowOcclusionStateVisible) {
-      Draw(&State.FrameBuffer);
+      Draw(&State.FrameBuffer, &State.Scene);
 
       glTexImage2D(
         GL_TEXTURE_2D,

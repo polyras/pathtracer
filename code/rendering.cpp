@@ -1,6 +1,6 @@
 #include "rendering.h"
 
-void Draw(frame_buffer *Buffer) {
+void Draw(frame_buffer *Buffer, scene *Scene) {
   v2ui16 ResDim = Buffer->Resolution.Dimension;
   ui32 YOffset;
   for(ui16 Y=0; Y<ResDim.Y; ++Y) {
