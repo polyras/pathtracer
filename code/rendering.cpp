@@ -32,9 +32,11 @@ void Draw(frame_buffer *Buffer, scene *Scene) {
       Ray.Direction = v3fp32::Normalize(Difference);
 
       color *Pixel = Buffer->Pixels + ScreenPixelYOffset + X;
-      Pixel->R = 255 * (0.5f + Difference.Y);
-      Pixel->G = 0;
-      Pixel->B = 0;
+
+      fp32 P = static_cast<fp32>(Y)/ScreenPlaneHeight;
+      Pixel->R = 255 * (P);
+      Pixel->G = 255 * (P);
+      Pixel->B = 255 * (P);
     }
   }
 }

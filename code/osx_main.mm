@@ -204,6 +204,7 @@ int main() {
   [NSApp activateIgnoringOtherApps:YES];
 #endif
 
+  glEnable(GL_FRAMEBUFFER_SRGB);
   glEnable(GL_TEXTURE_2D);
 
   while(State.Running) {
