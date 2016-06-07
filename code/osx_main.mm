@@ -168,7 +168,7 @@ static void InitScene(scene *Scene) {
   Cam->Position.Clear();
 
   Cam->Direction.Set(0, 0, 1);
-  Cam->Left.Set(1, 0, 0);
+  Cam->Left.Set(-1, 0, 0);
   Cam->FOV = DegToRad(60);
 }
 
