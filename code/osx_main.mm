@@ -1,13 +1,16 @@
 #include <Foundation/Foundation.h>
 #include <AppKit/AppKit.h>
+#include <OpenGL/gl.h>
 #include "lib/math.h"
 #include "lib/assert.h"
+#include "rendering.h"
 
 struct osx_state {
   bool Running;
   NSWindow *Window;
   NSOpenGLContext *OGLContext;
-  v2si16 Resolution;
+  GLuint TextureHandle;
+  frame_buffer FrameBuffer;
 };
 
 @interface PathtracerAppDelegate : NSObject <NSApplicationDelegate>
@@ -65,7 +68,7 @@ static void SetupOSXMenu() {
   [Bar release];
 }
 
-static NSWindow* CreateOSXWindow(v2si16 Resolution) {
+static NSWindow* CreateOSXWindow(v2ui16 Resolution) {
   int StyleMask = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask;
 
   NSScreen *Screen = [NSScreen mainScreen];
@@ -133,10 +136,34 @@ static NSOpenGLContext* CreateOGLContext() {
   return Context;
 }
 
+static void CreateTexture(GLuint *TextureHandle) {
+  glGenTextures(1, TextureHandle);
+  glBindTexture(GL_TEXTURE_2D, *TextureHandle);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+}
+
+static void DestroyTexture(GLuint TextureHandle) {
+  glDeleteTextures(1, &TextureHandle);
+}
+
+static void InitFrameBuffer(frame_buffer *Buffer) {
+  Buffer->Resolution.Dimension.X = 1200;
+  Buffer->Resolution.Dimension.Y = 800;
+  memsize PixelCount = Buffer->Resolution.Dimension.X * Buffer->Resolution.Dimension.Y;
+  Buffer->Pixels = (ui8*)malloc(PixelCount*3);
+}
+
+static void TerminateFrameBuffer(frame_buffer *Buffer) {
+  free(Buffer->Pixels);
+}
+
 int main() {
   osx_state State;
-  State.Resolution.X = 1200;
-  State.Resolution.Y = 800;
+  InitFrameBuffer(&State.FrameBuffer);
   State.Running = true;
   State.Window = nullptr;
   State.OGLContext = nullptr;
@@ -149,27 +176,62 @@ int main() {
   SetupOSXMenu();
   [App finishLaunching];
 
-  State.Window = CreateOSXWindow(State.Resolution);
+  State.Window = CreateOSXWindow(State.FrameBuffer.Resolution.Dimension);
   ReleaseAssert(State.Window != NULL, "Could not create window.");
 
   State.OGLContext = CreateOGLContext();
   ReleaseAssert(State.OGLContext != NULL, "Could not initialize OpenGL.");
 
+  [State.OGLContext makeCurrentContext];
+  [State.OGLContext setView:State.Window.contentView];
+
+  CreateTexture(&State.TextureHandle);
+
 #ifdef DEBUG
   [NSApp activateIgnoringOtherApps:YES];
 #endif
+
+  glEnable(GL_TEXTURE_2D);
 
   while(State.Running) {
     ProcessOSXMessages();
 
     if(State.Window.occlusionState & NSWindowOcclusionStateVisible) {
-      // Do OpenGL stuff
+      Draw(&State.FrameBuffer);
+
+      glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGB,
+        State.FrameBuffer.Resolution.Dimension.X,
+        State.FrameBuffer.Resolution.Dimension.Y,
+        0,
+        GL_RGB,
+        GL_UNSIGNED_BYTE,
+        State.FrameBuffer.Pixels
+      );
+
+      glBegin(GL_QUADS);
+      glTexCoord2f(0.0f, 0.0f);
+      glVertex2f(-1.0f, -1.0f);
+      glTexCoord2f(1.0f, 0.0f);
+      glVertex2f(1.0f, -1.0f);
+      glTexCoord2f(1.0f, 1.0f);
+      glVertex2f(1.0f, 1.0f);
+      glTexCoord2f(0.0f, 1.0f);
+      glVertex2f(-1.0f, 1.0f);
+      glEnd();
+
       [State.OGLContext flushBuffer];
     }
     else {
       usleep(10000);
     }
   }
+
+  DestroyTexture(State.TextureHandle);
+
+  TerminateFrameBuffer(&State.FrameBuffer);
 
   {
     PathtracerAppDelegate *D = App.delegate;
