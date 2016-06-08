@@ -7,6 +7,15 @@ struct ray {
   v3fp32 Direction;
 };
 
+static color CalcRadiance(ray Ray, scene *Scene) {
+  color Result;
+  fp32 P = Ray.Direction.Y * 2 + 0.5;
+  Result.R = 255 * P;
+  Result.G = 255 * P;
+  Result.B = 255 * P;
+  return Result;
+}
+
 void Draw(frame_buffer *Buffer, scene *Scene) {
   v3fp32 WorldPlaneCenter = Scene->Camera.Position + Scene->Camera.Direction;
   fp32 WorldPlaneWidth = TanFP32(Scene->Camera.FOV/2.0f)*2.0f;
@@ -30,13 +39,8 @@ void Draw(frame_buffer *Buffer, scene *Scene) {
       v3fp32 WorldPixelPosition = WorldRowCenter + Scene->Camera.Left * (PixelColCenterX * ScreenToWorldPlaneRatio);
       v3fp32 Difference = WorldPixelPosition - Scene->Camera.Position;
       Ray.Direction = v3fp32::Normalize(Difference);
-
       color *Pixel = Buffer->Pixels + ScreenPixelYOffset + X;
-
-      fp32 P = static_cast<fp32>(Y)/ScreenPlaneHeight;
-      Pixel->R = 255 * (P);
-      Pixel->G = 255 * (P);
-      Pixel->B = 255 * (P);
+      *Pixel = CalcRadiance(Ray, Scene);
     }
   }
 }
