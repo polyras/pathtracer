@@ -2,6 +2,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <float.h>
+
+#define FP32_MAX FLT_MAX;
 
 typedef float fp32;
 typedef double fp64;
