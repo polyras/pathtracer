@@ -13,8 +13,20 @@ struct color {
   ui8 B;
 };
 
+struct ray;
+
+struct triangle {
+  v3fp32 Vertices[3];
+  bool Intersect(ray Ray, fp32 *Distance) const;
+};
+
 struct scene {
   camera Camera;
+  triangle Triangles[50];
+  memsize TriangleCount;
+
+  scene();
+  void AddTriangle(v3fp32 V0, v3fp32 V1, v3fp32 V2);
 };
 
 struct resolution {

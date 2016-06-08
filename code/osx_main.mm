@@ -164,12 +164,16 @@ static void TerminateFrameBuffer(frame_buffer *Buffer) {
 
 static void InitScene(scene *Scene) {
   camera *Cam = &Scene->Camera;
-
   Cam->Position.Clear();
-
   Cam->Direction.Set(0, 0, 1);
   Cam->Left.Set(-1, 0, 0);
   Cam->FOV = DegToRad(60);
+
+  Scene->AddTriangle(
+    { 0.0f, 1.0f, 2.0f }, // top
+    { -0.5f, 0.0f, 2.0f }, // left foot
+    { 0.5f, 0.0f, 2.0f } // right foot
+  );
 }
 
 int main() {
