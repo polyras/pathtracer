@@ -4,7 +4,15 @@
 #include "lib/def.h"
 
 inline fp32 TanFP32(fp32 Angle) {
-  return tan(Angle);
+  return tanf(Angle);
+}
+
+inline fp32 SinFP32(fp32 Angle) {
+  return sinf(Angle);
+}
+
+inline fp32 CosFP32(fp32 Angle) {
+  return cosf(Angle);
 }
 
 inline fp32 SqrtFP32(fp32 N) {
@@ -26,9 +34,9 @@ struct v3fp32 {
 
   v3fp32() { }
 
-  v3fp32(fp32 R) : X(R), Y(R), Z(R) { }
+  explicit v3fp32(fp32 R) : X(R), Y(R), Z(R) { }
 
-  v3fp32(fp32 X, fp32 Y, fp32 Z) : X(X), Y(Y), Z(Z) { }
+  explicit v3fp32(fp32 X, fp32 Y, fp32 Z) : X(X), Y(Y), Z(Z) { }
 
   void Clear() {
     X = 0;
@@ -135,6 +143,20 @@ inline v3fp32 operator/(v3fp32 V, fp32 S) {
 inline v3fp32& operator/=(v3fp32 &V, fp32 S) {
   V = V / S;
   return V;
+}
+
+struct m33fp32 {
+  v3fp32 Col1;
+  v3fp32 Col2;
+  v3fp32 Col3;
+};
+
+inline v3fp32 operator*(m33fp32 M, v3fp32 V) {
+  v3fp32 Result;
+  Result.X = M.Col1.X * V.X + M.Col2.X * V.Y + M.Col3.X * V.Z;
+  Result.Y = M.Col1.Y * V.X + M.Col2.Y * V.Y + M.Col3.Y * V.Z;
+  Result.Z = M.Col1.Z * V.X + M.Col2.Z * V.Y + M.Col3.Z * V.Z;
+  return Result;
 }
 
 inline fp32 DegToRad(fp32 Angle) {

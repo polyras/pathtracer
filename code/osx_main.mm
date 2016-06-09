@@ -166,27 +166,31 @@ static void TerminateFrameBuffer(frame_buffer *Buffer) {
 
 static void InitScene(scene *Scene) {
   camera *Cam = &Scene->Camera;
-  Cam->Position.Clear();
-  Cam->Direction.Set(0, 0, 1);
+  Cam->Position.Set(0, 0.7, 0);
+  Cam->Direction.Set(0, -0.1, 1);
+  Cam->Direction.Normalize();
   Cam->Right.Set(1, 0, 0);
   Cam->FOV = DegToRad(60);
 
-  fp32 S = 1;
-  fp32 x = .0f;
   Scene->AddTriangle(
-    { x+0.0f*S, 0.9f*S, 3.0f }, // top
-    { x-1.0f*S, 0.1f*S, 3.0f }, // left foot
-    { x+1.0f*S, 0.1f*S, 3.0f } // right foot
+    v3fp32(-0.5f, 1.0f, 4.0f), // top left
+    v3fp32(-0.5f, 0.0f, 4.0f), // left foot
+    v3fp32(0.5f, 0.0f, 4.0f) // right foot
+  );
+  Scene->AddTriangle(
+    v3fp32(-0.5f, 1.0f, 4.0f), // top left
+    v3fp32(0.5f, 0.0f, 4.0f), // bottom right
+    v3fp32(0.5f, 1.0f, 4.0f) // top right
   );
 
   // Ground
   Scene->AddTriangle(
-    { 0.0f, 0.0f, -20.0f },
-    { 1000.0f, 0.0f, 500.0f },
-    { -1000.0f, 0.0f, 500.0f }
+    v3fp32(0.0f, 0.0f, -20.0f),
+    v3fp32(1000.0f, 0.0f, 500.0f),
+    v3fp32(-1000.0f, 0.0f, 500.0f)
   );
 
-  Scene->Sun.Direction.Set(0, -1, 0.2);
+  Scene->Sun.Direction.Set(0, -1, 20);
   Scene->Sun.Direction.Normalize();
 }
 

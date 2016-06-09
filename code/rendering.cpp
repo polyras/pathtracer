@@ -1,6 +1,12 @@
 #include "rendering.h"
 #include "lib/assert.h"
 
+#define EXPOSURE 180
+#define SAMPLE_COUNT 32
+#define BOUNCE_COUNT 1
+
+static const v3fp32 ArbitraryDirection = v3fp32::Normalize(v3fp32(15, 1, 67));
+
 struct ray {
   v3fp32 Origin;
   v3fp32 Direction;
@@ -70,7 +76,7 @@ static trace_result Trace(scene const *Scene, ray Ray) {
 
   fp32 TestDistance;
   for(memsize I=0; I<Scene->TriangleCount; ++I) {
-    const triangle *Triangle = Scene->Triangles + I;
+    triangle const *Triangle = Scene->Triangles + I;
     if(Triangle->Intersect(Ray, &TestDistance)) {
       if(TestDistance < ShortestDistance) {
         ClosestTriangleIndex = I;
@@ -93,15 +99,45 @@ static trace_result Trace(scene const *Scene, ray Ray) {
   return Result;
 }
 
-static v3fp32 CalcRadiance(scene const *Scene, v3fp32 Point, v3fp32 Normal, v3fp32 Direction) {
-  fp32 Intensity = v3fp32::Dot(-Normal, Scene->Sun.Direction);
-  v3fp32 Result(Intensity);
+static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
+  trace_result TraceResult = Trace(Scene, Ray);
+  if(!TraceResult.Hit) {
+    return v3fp32(0);
+  }
+
+  v3fp32 DirectLight = v3fp32(v3fp32::Dot(-TraceResult.Normal, Scene->Sun.Direction));
+  v3fp32 IndirectLight(0);
+  if(Depth != BOUNCE_COUNT) {
+    m33fp32 Rotation;
+    Rotation.Col1 =  ArbitraryDirection - TraceResult.Normal * v3fp32::Dot(ArbitraryDirection, TraceResult.Normal);
+    Rotation.Col1.Normalize();
+    Rotation.Col3 = TraceResult.Normal;
+    Rotation.Col2 = v3fp32::Cross(Rotation.Col1, Rotation.Col3);
+
+    ray SampleRay;
+    SampleRay.Origin = TraceResult.Position;
+    for(memsize I=0; I<SAMPLE_COUNT; ++I) {
+      fp32 Random1 = drand48();
+      fp32 Random2 = drand48();
+      fp32 R = SqrtFP32(1.0f - Random1 * Random1);
+      fp32 Phi = M_PI * 2.0f * Random2;
+
+      SampleRay.Direction.Set(
+        CosFP32(Phi) * R,
+        SinFP32(Phi) * R,
+        Random1
+      );
+
+      SampleRay.Direction = Rotation * SampleRay.Direction;
+      IndirectLight += CalcRadiance(Scene, SampleRay, Depth + 1) * v3fp32::Dot(TraceResult.Normal, SampleRay.Direction);
+    }
+  }
+
+  v3fp32 Result = DirectLight + IndirectLight / SAMPLE_COUNT;
   return Result;
 }
 
 void Draw(frame_buffer *Buffer, scene const *Scene) {
-  const static fp32 Exposure = 255.0f;
-
   v3fp32 WorldPlaneCenter = Scene->Camera.Position + Scene->Camera.Direction;
   fp32 WorldPlaneWidth = TanFP32(Scene->Camera.FOV/2.0f)*2.0f;
 
@@ -125,21 +161,12 @@ void Draw(frame_buffer *Buffer, scene const *Scene) {
       v3fp32 Difference = WorldPixelPosition - Scene->Camera.Position;
       Ray.Direction = v3fp32::Normalize(Difference);
 
-      memsize PixelIndex = ScreenPixelYOffset + X;
-      v3fp32 Radiance;
-      trace_result TraceResult = Trace(Scene, Ray);
-      if(TraceResult.Hit) {
-        Radiance = CalcRadiance(Scene, TraceResult.Position, TraceResult.Normal, -Ray.Direction);
-      }
-      else {
-        Radiance.Clear();
-      }
-
-      color *Pixel = Buffer->Bitmap + PixelIndex;
-      v3fp32 Brightness = Radiance * Exposure;
+      v3fp32 Radiance = CalcRadiance(Scene, Ray, 0);
+      color *Pixel = Buffer->Bitmap + ScreenPixelYOffset + X;
+      v3fp32 Brightness = Radiance * EXPOSURE;
       (*Pixel).R = MinMemsize(255, RoundFP32(Brightness.X));
-      (*Pixel).G = MinMemsize(255, RoundFP32(Brightness.X));
-      (*Pixel).B = MinMemsize(255, RoundFP32(Brightness.X));
+      (*Pixel).G = MinMemsize(255, RoundFP32(Brightness.Y));
+      (*Pixel).B = MinMemsize(255, RoundFP32(Brightness.Z));
     }
   }
 }
