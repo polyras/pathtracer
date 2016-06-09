@@ -57,7 +57,29 @@ struct v3fp32 {
   static v3fp32 Normalize(v3fp32 V) {
     return V / V.CalcLength();
   }
+
+  static fp32 Dot(v3fp32 A, v3fp32 B) {
+    fp32 Result = (
+      A.X * B.X +
+      A.Y * B.Y +
+      A.Z * B.Z
+    );
+    return Result;
+  }
+
+  static v3fp32 Cross(v3fp32 A, v3fp32 B) {
+    v3fp32 Result;
+    Result.X = A.Y*B.Z - A.Z*B.Y;
+    Result.Y = A.Z*B.X - A.X*B.Z;
+    Result.Z = A.X*B.Y - A.Y*B.X;
+    return Result;
+  }
 };
+
+inline v3fp32 operator-(v3fp32 const &V) {
+  v3fp32 Result(-V.X, -V.Y, -V.Z);
+  return Result;
+}
 
 inline v3fp32 operator+(v3fp32 A, v3fp32 B) {
   v3fp32 Result;

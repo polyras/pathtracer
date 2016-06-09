@@ -3,7 +3,7 @@
 struct camera {
   v3fp32 Position;
   v3fp32 Direction;
-  v3fp32 Left;
+  v3fp32 Right;
   fp32 FOV;
 };
 

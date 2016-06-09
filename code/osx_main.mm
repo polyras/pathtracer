@@ -152,8 +152,8 @@ static void DestroyTexture(GLuint TextureHandle) {
 }
 
 static void InitFrameBuffer(frame_buffer *Buffer) {
-  Buffer->Resolution.Dimension.X = 1200;
-  Buffer->Resolution.Dimension.Y = 800;
+  Buffer->Resolution.Dimension.X = 400;
+  Buffer->Resolution.Dimension.Y = 300;
   memsize PixelCount = Buffer->Resolution.Dimension.X * Buffer->Resolution.Dimension.Y;
   Buffer->Pixels = (color*)malloc(sizeof(color) * PixelCount);
 }
@@ -166,13 +166,15 @@ static void InitScene(scene *Scene) {
   camera *Cam = &Scene->Camera;
   Cam->Position.Clear();
   Cam->Direction.Set(0, 0, 1);
-  Cam->Left.Set(-1, 0, 0);
+  Cam->Right.Set(1, 0, 0);
   Cam->FOV = DegToRad(60);
 
+  fp32 S = 1;
+  fp32 x = .0f;
   Scene->AddTriangle(
-    { 0.0f, 1.0f, 2.0f }, // top
-    { -0.5f, 0.0f, 2.0f }, // left foot
-    { 0.5f, 0.0f, 2.0f } // right foot
+    { x+0.0f*S, 0.9f*S, 3.0f }, // top
+    { x-1.0f*S, 0.1f*S, 3.0f }, // left foot
+    { x+1.0f*S, 0.1f*S, 3.0f } // right foot
   );
 }
 

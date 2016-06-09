@@ -1,6 +1,5 @@
 #include "rendering.h"
-
-#include <stdio.h>
+#include "lib/assert.h"
 
 struct ray {
   v3fp32 Origin;
@@ -20,7 +19,34 @@ void scene::AddTriangle(v3fp32 V0, v3fp32 V1, v3fp32 V2) {
 }
 
 bool triangle::Intersect(ray Ray, fp32 *Distance) const {
-  *Distance = 10;
+  v3fp32 VertexB = Vertices[1] - Vertices[0];
+  v3fp32 VertexC = Vertices[2] - Vertices[0];
+  v3fp32 RayDirectionCrossVertexC = v3fp32::Cross(Ray.Direction, VertexC);
+  fp32 KDet = v3fp32::Dot(RayDirectionCrossVertexC, VertexB);
+  if(KDet > -0.0001) {
+    return false;
+  }
+  fp32 KDetInv = 1.0f / KDet;
+  v3fp32 RayOrigin = Ray.Origin - Vertices[0];
+
+  fp32 BaryU = KDetInv * v3fp32::Dot(RayDirectionCrossVertexC, RayOrigin);
+  if(BaryU > 1 || BaryU < 0) {
+    return false;
+  }
+
+  v3fp32 RayOriginCrossVertexB = v3fp32::Cross(RayOrigin, VertexB);
+  fp32 BaryV = KDetInv * v3fp32::Dot(Ray.Direction, RayOriginCrossVertexB);
+  if(BaryV > 1 || BaryV < 0) {
+    return false;
+  }
+
+  if(BaryU + BaryV > 1) {
+    return false;
+  }
+
+  fp32 T = KDetInv * v3fp32::Dot(RayOriginCrossVertexB, VertexC);
+  *Distance = T;
+
   return true;
 }
 
@@ -72,7 +98,7 @@ void Draw(frame_buffer *Buffer, scene *Scene) {
     v3fp32 WorldRowCenter = WorldPlaneCenter + Up * (ScreenRowCenterY * ScreenToWorldPlaneRatio);
     for(ui16 X=0; X<ScreenPlaneWidth; ++X) {
       fp32 PixelColCenterX = 0.5f + (static_cast<si16>(X) - HalfScreenPlaneWidth);
-      v3fp32 WorldPixelPosition = WorldRowCenter + Scene->Camera.Left * (PixelColCenterX * ScreenToWorldPlaneRatio);
+      v3fp32 WorldPixelPosition = WorldRowCenter + Scene->Camera.Right * (PixelColCenterX * ScreenToWorldPlaneRatio);
       v3fp32 Difference = WorldPixelPosition - Scene->Camera.Position;
       Ray.Direction = v3fp32::Normalize(Difference);
       color *Pixel = Buffer->Pixels + ScreenPixelYOffset + X;
