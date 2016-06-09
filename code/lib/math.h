@@ -22,6 +22,11 @@ inline fp32 SqrtFP32(fp32 N) {
 struct v2ui16 {
   ui16 X;
   ui16 Y;
+
+  void Set(fp32 NewX, fp32 NewY) {
+    X = NewX;
+    Y = NewY;
+  }
 };
 
 struct v3fp32;

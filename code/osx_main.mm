@@ -1,7 +1,6 @@
 #include <Foundation/Foundation.h>
 #include <AppKit/AppKit.h>
 #include <OpenGL/gl.h>
-#include <new>
 #include "lib/math.h"
 #include "lib/assert.h"
 #include "rendering.h"
@@ -12,6 +11,7 @@ struct osx_state {
   NSOpenGLContext *OGLContext;
   GLuint TextureHandle;
   frame_buffer FrameBuffer;
+  resolution WindowResolution;
   scene Scene;
 };
 
@@ -153,8 +153,7 @@ static void DestroyTexture(GLuint TextureHandle) {
 }
 
 static void InitFrameBuffer(frame_buffer *Buffer) {
-  Buffer->Resolution.Dimension.X = 400;
-  Buffer->Resolution.Dimension.Y = 300;
+  Buffer->Resolution.Dimension.Set(160, 120);
   memsize PixelCount = Buffer->Resolution.Dimension.X * Buffer->Resolution.Dimension.Y;
   Buffer->Bitmap = (color*)malloc(sizeof(color) * PixelCount);
 }
@@ -200,6 +199,7 @@ int main() {
   State.Running = true;
   State.Window = nullptr;
   State.OGLContext = nullptr;
+  State.WindowResolution.Dimension.Set(1200, 800);
 
   InitScene(&State.Scene);
 
@@ -211,7 +211,7 @@ int main() {
   SetupOSXMenu();
   [App finishLaunching];
 
-  State.Window = CreateOSXWindow(State.FrameBuffer.Resolution.Dimension);
+  State.Window = CreateOSXWindow(State.WindowResolution.Dimension);
   ReleaseAssert(State.Window != NULL, "Could not create window.");
 
   State.OGLContext = CreateOGLContext();
