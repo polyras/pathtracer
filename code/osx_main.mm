@@ -155,11 +155,11 @@ static void DestroyTexture(GLuint TextureHandle) {
 static void InitFrameBuffer(frame_buffer *Buffer) {
   Buffer->Resolution.Dimension.Set(160, 120);
   memsize PixelCount = Buffer->Resolution.Dimension.X * Buffer->Resolution.Dimension.Y;
-  Buffer->Bitmap = (color*)malloc(sizeof(color) * PixelCount);
+  Buffer->Bitmap = new color[PixelCount];
 }
 
 static void TerminateFrameBuffer(frame_buffer *Buffer) {
-  free(Buffer->Bitmap);
+  delete[] Buffer->Bitmap;
   Buffer->Bitmap = nullptr;
 }
 

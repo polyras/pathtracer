@@ -2,7 +2,7 @@ include MakefileSettings
 
 all: debug
 
-COMMON_FLAGS = -Wall -std=gnu++11 -stdlib=libc++ -ferror-limit=1 -fno-exceptions -fno-rtti
+COMMON_FLAGS = -Wall -std=c++11 -ferror-limit=1 -fno-exceptions -fno-rtti
 COMPILE_FLAGS = -iquote $(CODE_ROOT)
 release: COMMON_FLAGS += -O2
 debug: COMMON_FLAGS += -O0 -DDEBUG -g
@@ -37,17 +37,17 @@ RELEASE_BINARY = $(PRODUCT_DIR)/Pathtracer.app/MacOS/Pathtracer
 
 define CREATE_CPP_OBJ_COMMAND
 mkdir -p $(dir $@)
-$(CC) $(COMMON_FLAGS) $(COMPILE_FLAGS) -c $< -o $@ -MMD -MF $@.deps
+$(CXX) $(COMMON_FLAGS) $(COMPILE_FLAGS) -c $< -o $@ -MMD -MF $@.deps
 endef
 
 define CREATE_OBJ_CPP_OBJ_COMMAND
 mkdir -p $(dir $@)
-$(CC) $(COMMON_FLAGS) $(COMPILE_FLAGS) -fno-objc-arc -c $< -o $@ -MMD -MF $@.deps
+$(CXX) $(COMMON_FLAGS) $(COMPILE_FLAGS) -fno-objc-arc -c $< -o $@ -MMD -MF $@.deps
 endef
 
 define CREATE_BINARY_COMMAND
 mkdir -p $(dir $@)
-$(CC) $(COMMON_FLAGS) $(OSX_FRAMEWORKS_FLAGS) $^ -o $@
+$(CXX) $(COMMON_FLAGS) $(OSX_FRAMEWORKS_FLAGS) $^ -o $@
 endef
 
 $(DEBUG_OBJ_DIR)/%.o: $(CODE_ROOT)/%.cpp
