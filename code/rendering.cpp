@@ -93,17 +93,15 @@ static trace_result Trace(scene const *Scene, ray Ray) {
   return Result;
 }
 
-static color CalcRadiance(scene *Scene, v3fp32 Point, v3fp32 Normal, v3fp32 Direction) {
-  color Result = {};
-
-  Result.R = 255 * v3fp32::Dot(-Normal, Scene->Sun.Direction);
-  Result.G = 0;
-  Result.B = 0;
-
+static v3fp32 CalcRadiance(scene const *Scene, v3fp32 Point, v3fp32 Normal, v3fp32 Direction) {
+  fp32 Intensity = v3fp32::Dot(-Normal, Scene->Sun.Direction);
+  v3fp32 Result(Intensity);
   return Result;
 }
 
-void Draw(frame_buffer *Buffer, scene *Scene) {
+void Draw(frame_buffer *Buffer, scene const *Scene) {
+  const static fp32 Exposure = 255.0f;
+
   v3fp32 WorldPlaneCenter = Scene->Camera.Position + Scene->Camera.Direction;
   fp32 WorldPlaneWidth = TanFP32(Scene->Camera.FOV/2.0f)*2.0f;
 
@@ -127,16 +125,21 @@ void Draw(frame_buffer *Buffer, scene *Scene) {
       v3fp32 Difference = WorldPixelPosition - Scene->Camera.Position;
       Ray.Direction = v3fp32::Normalize(Difference);
 
-      color *Pixel = Buffer->Pixels + ScreenPixelYOffset + X;
+      memsize PixelIndex = ScreenPixelYOffset + X;
+      v3fp32 Radiance;
       trace_result TraceResult = Trace(Scene, Ray);
       if(TraceResult.Hit) {
-        *Pixel = CalcRadiance(Scene, TraceResult.Position, TraceResult.Normal, -Ray.Direction);
+        Radiance = CalcRadiance(Scene, TraceResult.Position, TraceResult.Normal, -Ray.Direction);
       }
       else {
-        (*Pixel).R = 0;
-        (*Pixel).G = 0;
-        (*Pixel).B = 0;
+        Radiance.Clear();
       }
+
+      color *Pixel = Buffer->Bitmap + PixelIndex;
+      v3fp32 Brightness = Radiance * Exposure;
+      (*Pixel).R = MinMemsize(255, RoundFP32(Brightness.X));
+      (*Pixel).G = MinMemsize(255, RoundFP32(Brightness.X));
+      (*Pixel).B = MinMemsize(255, RoundFP32(Brightness.X));
     }
   }
 }

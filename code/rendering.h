@@ -41,7 +41,7 @@ struct resolution {
 
 struct frame_buffer {
   resolution Resolution;
-  color *Pixels;
+  color *Bitmap;
 };
 
-void Draw(frame_buffer *Buffer, scene *Scene);
+void Draw(frame_buffer *Buffer, scene const *Scene);

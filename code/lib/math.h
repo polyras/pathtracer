@@ -26,9 +26,9 @@ struct v3fp32 {
 
   v3fp32() { }
 
-  v3fp32(fp32 X, fp32 Y, fp32 Z) {
-    Set(X, Y, Z);
-  }
+  v3fp32(fp32 R) : X(R), Y(R), Z(R) { }
+
+  v3fp32(fp32 X, fp32 Y, fp32 Z) : X(X), Y(Y), Z(Z) { }
 
   void Clear() {
     X = 0;
@@ -139,4 +139,16 @@ inline v3fp32& operator/=(v3fp32 &V, fp32 S) {
 
 inline fp32 DegToRad(fp32 Angle) {
   return (Angle/360) * (M_PI*2);
+}
+
+inline fp32 MinFP32(fp32 A, fp32 B) {
+  return A < B ? A : B;
+}
+
+inline memsize MinMemsize(memsize A, memsize B) {
+  return A < B ? A : B;
+}
+
+inline memsize RoundFP32(fp32 R) {
+  return static_cast<memsize>(floor(R + 0.5f));
 }

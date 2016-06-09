@@ -1,6 +1,7 @@
 #include <Foundation/Foundation.h>
 #include <AppKit/AppKit.h>
 #include <OpenGL/gl.h>
+#include <new>
 #include "lib/math.h"
 #include "lib/assert.h"
 #include "rendering.h"
@@ -155,11 +156,12 @@ static void InitFrameBuffer(frame_buffer *Buffer) {
   Buffer->Resolution.Dimension.X = 400;
   Buffer->Resolution.Dimension.Y = 300;
   memsize PixelCount = Buffer->Resolution.Dimension.X * Buffer->Resolution.Dimension.Y;
-  Buffer->Pixels = (color*)malloc(sizeof(color) * PixelCount);
+  Buffer->Bitmap = (color*)malloc(sizeof(color) * PixelCount);
 }
 
 static void TerminateFrameBuffer(frame_buffer *Buffer) {
-  free(Buffer->Pixels);
+  free(Buffer->Bitmap);
+  Buffer->Bitmap = nullptr;
 }
 
 static void InitScene(scene *Scene) {
@@ -238,7 +240,7 @@ int main() {
         0,
         GL_RGB,
         GL_UNSIGNED_BYTE,
-        State.FrameBuffer.Pixels
+        State.FrameBuffer.Bitmap
       );
 
       glBegin(GL_QUADS);
