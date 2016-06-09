@@ -1,6 +1,7 @@
 #include <Foundation/Foundation.h>
 #include <AppKit/AppKit.h>
 #include <OpenGL/gl.h>
+#include <new>
 #include "lib/math.h"
 #include "lib/assert.h"
 #include "rendering.h"
@@ -155,7 +156,8 @@ static void DestroyTexture(GLuint TextureHandle) {
 static void InitFrameBuffer(frame_buffer *Buffer) {
   Buffer->Resolution.Dimension.Set(160, 120);
   memsize PixelCount = Buffer->Resolution.Dimension.X * Buffer->Resolution.Dimension.Y;
-  Buffer->Bitmap = new color[PixelCount];
+  Buffer->Bitmap = new (std::nothrow) color[PixelCount];
+  ReleaseAssert(Buffer->Bitmap != nullptr, "Could not allocate bitmap.");
 }
 
 static void TerminateFrameBuffer(frame_buffer *Buffer) {
