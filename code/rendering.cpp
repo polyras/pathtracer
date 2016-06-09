@@ -6,6 +6,12 @@ struct ray {
   v3fp32 Direction;
 };
 
+struct trace_result {
+  bool Hit;
+  v3fp32 Position;
+  v3fp32 Normal;
+};
+
 scene::scene() {
   TriangleCount = 0;
 }
@@ -50,30 +56,49 @@ bool triangle::Intersect(ray Ray, fp32 *Distance) const {
   return true;
 }
 
-static bool Trace(scene const *Scene, ray Ray) {
-  fp32 ShortestDistance = FP32_MAX;
-  fp32 Distance;
+v3fp32 triangle::CalcNormal() const {
+  v3fp32 Edge0 = Vertices[1] - Vertices[0];
+  v3fp32 Edge1 = Vertices[2] - Vertices[0];
+  v3fp32 Normal = v3fp32::Cross(Edge1, Edge0);
+  Normal.Normalize();
+  return Normal;
+}
 
+static trace_result Trace(scene const *Scene, ray Ray) {
+  memsize ClosestTriangleIndex = MEMSIZE_MAX;
+  fp32 ShortestDistance = FP32_MAX;
+
+  fp32 TestDistance;
   for(memsize I=0; I<Scene->TriangleCount; ++I) {
     const triangle *Triangle = Scene->Triangles + I;
-    if(Triangle->Intersect(Ray, &Distance)) {
-      if(Distance < ShortestDistance) {
-        ShortestDistance = Distance;
+    if(Triangle->Intersect(Ray, &TestDistance)) {
+      if(TestDistance < ShortestDistance) {
+        ClosestTriangleIndex = I;
+        ShortestDistance = TestDistance;
       }
     }
   }
 
-  return ShortestDistance != FP32_MAX;
+  trace_result Result;
+  if(ClosestTriangleIndex != MEMSIZE_MAX) {
+    Result.Hit = true;
+    Result.Hit = ShortestDistance != FP32_MAX;
+    Result.Position = Ray.Origin + Ray.Direction * ShortestDistance;
+    Result.Normal = Scene->Triangles[ClosestTriangleIndex].CalcNormal();
+  }
+  else {
+    Result.Hit = false;
+  }
+
+  return Result;
 }
 
-static color CalcRadiance(scene *Scene, ray Ray) {
+static color CalcRadiance(scene *Scene, v3fp32 Point, v3fp32 Normal, v3fp32 Direction) {
   color Result = {};
 
-  if(Trace(Scene, Ray)) {
-    Result.R = 255;
-    Result.G = 0;
-    Result.B = 0;
-  }
+  Result.R = 255 * v3fp32::Dot(-Normal, Scene->Sun.Direction);
+  Result.G = 0;
+  Result.B = 0;
 
   return Result;
 }
@@ -101,8 +126,17 @@ void Draw(frame_buffer *Buffer, scene *Scene) {
       v3fp32 WorldPixelPosition = WorldRowCenter + Scene->Camera.Right * (PixelColCenterX * ScreenToWorldPlaneRatio);
       v3fp32 Difference = WorldPixelPosition - Scene->Camera.Position;
       Ray.Direction = v3fp32::Normalize(Difference);
+
       color *Pixel = Buffer->Pixels + ScreenPixelYOffset + X;
-      *Pixel = CalcRadiance(Scene, Ray);
+      trace_result TraceResult = Trace(Scene, Ray);
+      if(TraceResult.Hit) {
+        *Pixel = CalcRadiance(Scene, TraceResult.Position, TraceResult.Normal, -Ray.Direction);
+      }
+      else {
+        (*Pixel).R = 0;
+        (*Pixel).G = 0;
+        (*Pixel).B = 0;
+      }
     }
   }
 }

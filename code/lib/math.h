@@ -36,6 +36,10 @@ struct v3fp32 {
     Z = 0;
   }
 
+  void Normalize() {
+    *this = v3fp32::Normalize(*this);
+  }
+
   void Set(fp32 NewX, fp32 NewY, fp32 NewZ) {
     X = NewX;
     Y = NewY;

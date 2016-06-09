@@ -176,6 +176,16 @@ static void InitScene(scene *Scene) {
     { x-1.0f*S, 0.1f*S, 3.0f }, // left foot
     { x+1.0f*S, 0.1f*S, 3.0f } // right foot
   );
+
+  // Ground
+  Scene->AddTriangle(
+    { 0.0f, 0.0f, -20.0f },
+    { 1000.0f, 0.0f, 500.0f },
+    { -1000.0f, 0.0f, 500.0f }
+  );
+
+  Scene->Sun.Direction.Set(0, -1, 0.2);
+  Scene->Sun.Direction.Normalize();
 }
 
 int main() {

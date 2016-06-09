@@ -13,15 +13,21 @@ struct color {
   ui8 B;
 };
 
+struct sun {
+  v3fp32 Direction;
+};
+
 struct ray;
 
 struct triangle {
   v3fp32 Vertices[3];
   bool Intersect(ray Ray, fp32 *Distance) const;
+  v3fp32 CalcNormal() const;
 };
 
 struct scene {
   camera Camera;
+  sun Sun;
   triangle Triangles[50];
   memsize TriangleCount;
 
