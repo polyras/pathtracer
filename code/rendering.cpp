@@ -115,8 +115,7 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
   }
 
   v3fp32 SunPosDifference = Scene->Sun.Position - ObjectTraceResult.Position;
-  fp32 SunDistance = SunPosDifference.CalcLength();
-  v3fp32 SunDirection = SunPosDifference / SunDistance;
+  v3fp32 SunDirection = v3fp32::Normalize(SunPosDifference);
   ray SunRay = { .Origin = ObjectTraceResult.Position, .Direction = SunDirection };
   trace_result SunTraceResult = Trace(Scene, SunRay);
   v3fp32 DirectLight(0);
