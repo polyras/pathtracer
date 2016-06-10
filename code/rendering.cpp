@@ -135,7 +135,7 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
       SampleRay.Direction = Rotation * SampleRay.Direction;
       IndirectLight += CalcRadiance(Scene, SampleRay, Depth + 1) * v3fp32::Dot(TraceResult.Normal, SampleRay.Direction);
     }
-    IndirectLight /= SAMPLE_COUNT;
+    IndirectLight *= (2.0f * M_PI) / SAMPLE_COUNT;
   }
 
   v3fp32 Albedo(
