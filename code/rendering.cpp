@@ -1,7 +1,7 @@
 #include "rendering.h"
 #include "lib/assert.h"
 
-#define EXPOSURE 700
+#define EXPOSURE 40
 #define SAMPLE_COUNT 32
 #define BOUNCE_COUNT 1
 
@@ -37,6 +37,7 @@ bool triangle::Intersect(ray Ray, fp32 *Distance) const {
   v3fp32 VertexC = Vertices[2] - Vertices[0];
   v3fp32 RayDirectionCrossVertexC = v3fp32::Cross(Ray.Direction, VertexC);
   fp32 KDet = v3fp32::Dot(RayDirectionCrossVertexC, VertexB);
+
   if(KDet > -0.0001) {
     return false;
   }
@@ -59,6 +60,10 @@ bool triangle::Intersect(ray Ray, fp32 *Distance) const {
   }
 
   fp32 T = KDetInv * v3fp32::Dot(RayOriginCrossVertexB, VertexC);
+  if(T < 0.0001) {
+    return false;
+  }
+
   *Distance = T;
 
   return true;
@@ -104,22 +109,33 @@ static trace_result Trace(scene const *Scene, ray Ray) {
 }
 
 static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
-  trace_result TraceResult = Trace(Scene, Ray);
-  if(!TraceResult.Hit) {
-    return v3fp32(0);
+  trace_result ObjectTraceResult = Trace(Scene, Ray);
+  if(!ObjectTraceResult.Hit) {
+    return v3fp32(2.2f);
   }
 
-  v3fp32 DirectLight = v3fp32(v3fp32::Dot(-TraceResult.Normal, Scene->Sun.Direction));
+  v3fp32 SunPosDifference = Scene->Sun.Position - ObjectTraceResult.Position;
+  fp32 SunDistance = SunPosDifference.CalcLength();
+  v3fp32 SunDirection = SunPosDifference / SunDistance;
+  ray SunRay = { .Origin = ObjectTraceResult.Position, .Direction = SunDirection };
+  trace_result SunTraceResult = Trace(Scene, SunRay);
+  v3fp32 DirectLight(0);
+
+  if(!SunTraceResult.Hit) {
+    DirectLight = v3fp32(MaxFP32(0, v3fp32::Dot(ObjectTraceResult.Normal, SunDirection)));
+    DirectLight *= Scene->Sun.Irradiance;
+  }
+
   v3fp32 IndirectLight(0);
   if(Depth != BOUNCE_COUNT) {
     m33fp32 Rotation;
-    Rotation.Col1 =  ArbitraryDirection - TraceResult.Normal * v3fp32::Dot(ArbitraryDirection, TraceResult.Normal);
+    Rotation.Col1 =  ArbitraryDirection - ObjectTraceResult.Normal * v3fp32::Dot(ArbitraryDirection, ObjectTraceResult.Normal);
     Rotation.Col1.Normalize();
-    Rotation.Col3 = TraceResult.Normal;
+    Rotation.Col3 = ObjectTraceResult.Normal;
     Rotation.Col2 = v3fp32::Cross(Rotation.Col1, Rotation.Col3);
 
     ray SampleRay;
-    SampleRay.Origin = TraceResult.Position;
+    SampleRay.Origin = ObjectTraceResult.Position;
     for(memsize I=0; I<SAMPLE_COUNT; ++I) {
       fp32 Random1 = drand48();
       fp32 Random2 = drand48();
@@ -133,15 +149,15 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
       );
 
       SampleRay.Direction = Rotation * SampleRay.Direction;
-      IndirectLight += CalcRadiance(Scene, SampleRay, Depth + 1) * v3fp32::Dot(TraceResult.Normal, SampleRay.Direction);
+      IndirectLight += CalcRadiance(Scene, SampleRay, Depth + 1) * v3fp32::Dot(ObjectTraceResult.Normal, SampleRay.Direction);
     }
     IndirectLight *= (2.0f * M_PI) / SAMPLE_COUNT;
   }
 
   v3fp32 Albedo(
-    static_cast<fp32>(TraceResult.Albedo.R) / 255.0f,
-    static_cast<fp32>(TraceResult.Albedo.G) / 255.0f,
-    static_cast<fp32>(TraceResult.Albedo.B) / 255.0f
+    static_cast<fp32>(ObjectTraceResult.Albedo.R) / 255.0f,
+    static_cast<fp32>(ObjectTraceResult.Albedo.G) / 255.0f,
+    static_cast<fp32>(ObjectTraceResult.Albedo.B) / 255.0f
   );
   v3fp32 Result = v3fp32::Hadamard(
     DirectLight + IndirectLight,
@@ -181,7 +197,7 @@ void Draw(frame_buffer *Buffer, scene const *Scene) {
       (*Pixel).G = MinMemsize(255, RoundFP32(Brightness.Y));
       (*Pixel).B = MinMemsize(255, RoundFP32(Brightness.Z));
 
-      // Temp dummy:
+      // Temp safe guard:
       ReleaseAssert((*Pixel).R != 255, "Over exposure");
       ReleaseAssert((*Pixel).G != 255, "Over exposure");
       ReleaseAssert((*Pixel).B != 255, "Over exposure");

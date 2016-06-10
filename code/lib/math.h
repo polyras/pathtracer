@@ -180,6 +180,10 @@ inline fp32 MinFP32(fp32 A, fp32 B) {
   return A < B ? A : B;
 }
 
+inline fp32 MaxFP32(fp32 A, fp32 B) {
+  return A > B ? A : B;
+}
+
 inline memsize MinMemsize(memsize A, memsize B) {
   return A < B ? A : B;
 }

@@ -18,7 +18,8 @@ struct color {
 };
 
 struct sun {
-  v3fp32 Direction;
+  v3fp32 Position;
+  fp32 Irradiance;
 };
 
 struct ray;
