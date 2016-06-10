@@ -1,7 +1,7 @@
 #include "rendering.h"
 #include "lib/assert.h"
 
-#define EXPOSURE 180
+#define EXPOSURE 700
 #define SAMPLE_COUNT 32
 #define BOUNCE_COUNT 1
 
@@ -16,17 +16,19 @@ struct trace_result {
   bool Hit;
   v3fp32 Position;
   v3fp32 Normal;
+  color Albedo;
 };
 
 scene::scene() {
   TriangleCount = 0;
 }
 
-void scene::AddTriangle(v3fp32 V0, v3fp32 V1, v3fp32 V2) {
+void scene::AddTriangle(v3fp32 V0, v3fp32 V1, v3fp32 V2, color Albedo) {
   triangle *T = Triangles + TriangleCount;
   T->Vertices[0] = V0;
   T->Vertices[1] = V1;
   T->Vertices[2] = V2;
+  T->Albedo = Albedo;
   TriangleCount++;
 }
 
@@ -90,7 +92,9 @@ static trace_result Trace(scene const *Scene, ray Ray) {
     Result.Hit = true;
     Result.Hit = ShortestDistance != FP32_MAX;
     Result.Position = Ray.Origin + Ray.Direction * ShortestDistance;
-    Result.Normal = Scene->Triangles[ClosestTriangleIndex].CalcNormal();
+    triangle const *Triangle = Scene->Triangles + ClosestTriangleIndex;
+    Result.Normal = Triangle->CalcNormal();
+    Result.Albedo = Triangle->Albedo;
   }
   else {
     Result.Hit = false;
@@ -131,9 +135,18 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
       SampleRay.Direction = Rotation * SampleRay.Direction;
       IndirectLight += CalcRadiance(Scene, SampleRay, Depth + 1) * v3fp32::Dot(TraceResult.Normal, SampleRay.Direction);
     }
+    IndirectLight /= SAMPLE_COUNT;
   }
 
-  v3fp32 Result = DirectLight + IndirectLight / SAMPLE_COUNT;
+  v3fp32 Albedo(
+    static_cast<fp32>(TraceResult.Albedo.R) / 255.0f,
+    static_cast<fp32>(TraceResult.Albedo.G) / 255.0f,
+    static_cast<fp32>(TraceResult.Albedo.B) / 255.0f
+  );
+  v3fp32 Result = v3fp32::Hadamard(
+    DirectLight + IndirectLight,
+    Albedo * PI_INV
+  );
   return Result;
 }
 
@@ -162,11 +175,16 @@ void Draw(frame_buffer *Buffer, scene const *Scene) {
       Ray.Direction = v3fp32::Normalize(Difference);
 
       v3fp32 Radiance = CalcRadiance(Scene, Ray, 0);
-      color *Pixel = Buffer->Bitmap + ScreenPixelYOffset + X;
       v3fp32 Brightness = Radiance * EXPOSURE;
+      color *Pixel = Buffer->Bitmap + ScreenPixelYOffset + X;
       (*Pixel).R = MinMemsize(255, RoundFP32(Brightness.X));
       (*Pixel).G = MinMemsize(255, RoundFP32(Brightness.Y));
       (*Pixel).B = MinMemsize(255, RoundFP32(Brightness.Z));
+
+      // Temp dummy:
+      ReleaseAssert((*Pixel).R != 255, "Over exposure");
+      ReleaseAssert((*Pixel).G != 255, "Over exposure");
+      ReleaseAssert((*Pixel).B != 255, "Over exposure");
     }
   }
 }

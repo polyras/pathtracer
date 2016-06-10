@@ -6,6 +6,7 @@
 
 #define FP32_MAX FLT_MAX
 #define MEMSIZE_MAX SIZE_MAX
+#define PI_INV (1.0 / M_PI)
 
 typedef float fp32;
 typedef double fp64;

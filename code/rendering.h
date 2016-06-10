@@ -11,6 +11,10 @@ struct color {
   ui8 R;
   ui8 G;
   ui8 B;
+
+  color() { }
+
+  color(ui8 R, ui8 G, ui8 B) : R(R), G(G), B(B) { }
 };
 
 struct sun {
@@ -21,6 +25,7 @@ struct ray;
 
 struct triangle {
   v3fp32 Vertices[3];
+  color Albedo;
   bool Intersect(ray Ray, fp32 *Distance) const;
   v3fp32 CalcNormal() const;
 };
@@ -32,7 +37,7 @@ struct scene {
   memsize TriangleCount;
 
   scene();
-  void AddTriangle(v3fp32 V0, v3fp32 V1, v3fp32 V2);
+  void AddTriangle(v3fp32 V0, v3fp32 V1, v3fp32 V2, color Albedo);
 };
 
 struct resolution {

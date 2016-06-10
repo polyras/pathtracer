@@ -84,6 +84,14 @@ struct v3fp32 {
     return Result;
   }
 
+  static v3fp32 Hadamard(v3fp32 A, v3fp32 B) {
+    v3fp32 Result;
+    Result.X = A.X * B.X;
+    Result.Y = A.Y * B.Y;
+    Result.Z = A.Z * B.Z;
+    return Result;
+  }
+
   static v3fp32 Cross(v3fp32 A, v3fp32 B) {
     v3fp32 Result;
     Result.X = A.Y*B.Z - A.Z*B.Y;

@@ -176,22 +176,25 @@ static void InitScene(scene *Scene) {
   Scene->AddTriangle(
     v3fp32(-0.5f, 1.0f, 4.0f), // top left
     v3fp32(-0.5f, 0.0f, 4.0f), // left foot
-    v3fp32(0.5f, 0.0f, 4.0f) // right foot
+    v3fp32(0.5f, 0.0f, 4.0f), // right foot
+    color(255, 20, 20)
   );
   Scene->AddTriangle(
     v3fp32(-0.5f, 1.0f, 4.0f), // top left
     v3fp32(0.5f, 0.0f, 4.0f), // bottom right
-    v3fp32(0.5f, 1.0f, 4.0f) // top right
+    v3fp32(0.5f, 1.0f, 4.0f), // top right
+    color(255, 20, 20)
   );
 
   // Ground
   Scene->AddTriangle(
     v3fp32(0.0f, 0.0f, -20.0f),
     v3fp32(1000.0f, 0.0f, 500.0f),
-    v3fp32(-1000.0f, 0.0f, 500.0f)
+    v3fp32(-1000.0f, 0.0f, 500.0f),
+    color(255, 255, 255)
   );
 
-  Scene->Sun.Direction.Set(0, -1, 20);
+  Scene->Sun.Direction.Set(0, -3, 20);
   Scene->Sun.Direction.Normalize();
 }
 
