@@ -1,3 +1,5 @@
+#pragma once
+
 #include "lib/math.h"
 
 struct camera {
