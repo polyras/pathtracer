@@ -1,7 +1,7 @@
 #include "rendering.h"
 #include "lib/assert.h"
 
-#define EXPOSURE 40
+#define EXPOSURE 30
 #define SAMPLE_COUNT 32
 #define BOUNCE_COUNT 1
 
