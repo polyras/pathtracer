@@ -1,7 +1,6 @@
 #include <Foundation/Foundation.h>
 #include <AppKit/AppKit.h>
 #include <OpenGL/gl.h>
-#include <dispatch/dispatch.h>
 #include <new>
 #include <thread>
 #include "lib/math.h"
@@ -10,6 +9,13 @@
 #include "scene1.h"
 
 #define THREAD_COUNT 4
+
+enum struct worker_state {
+  uninitialized,
+  work_scheduled,
+  work_completed,
+  shutdown
+};
 
 struct osx_state {
   bool Running;
@@ -21,10 +27,11 @@ struct osx_state {
   resolution RenderResolution;
   scene Scene;
   memsize TileCount;
-  dispatch_semaphore_t WorkerSemaphore;
-  dispatch_semaphore_t MainSemaphore;
   std::thread Threads[THREAD_COUNT];
-  std::atomic<memsize> NextTileIndex;
+  std::atomic<memsize> CurrentTileIndex;
+  worker_state WorkerState;
+  std::mutex WorkerMutex;
+  std::condition_variable SyncEvent;
 };
 
 @interface PathtracerAppDelegate : NSObject <NSApplicationDelegate>
@@ -177,24 +184,32 @@ static void TerminateFrameBuffer(osx_state *State) {
 
 static void WorkerMain(osx_state *State) {
   for(;;) {
-    dispatch_semaphore_wait(State->WorkerSemaphore, DISPATCH_TIME_FOREVER);
-
-    for(;;) {
-      ui16 TileIndex = State->NextTileIndex.load(std::memory_order_relaxed);
-      if(TileIndex == UI16_MAX) {
-        return;
-      }
-
-      TileIndex = State->NextTileIndex.fetch_add(1, std::memory_order_relaxed);
-      if(TileIndex < State->TileCount) {
-        RenderTile(State->RenderBuffer, &State->Scene, TileIndex);
-        if(TileIndex + 1 == State->TileCount) {
-          dispatch_semaphore_signal(State->MainSemaphore);
+    std::unique_lock<std::mutex> Lock(State->WorkerMutex);
+    switch(State->WorkerState) {
+      case worker_state::work_scheduled: {
+        Lock.unlock();
+        for(;;) {
+          memsize TileIndex = State->CurrentTileIndex.fetch_add(1, std::memory_order_relaxed);
+          if(TileIndex < State->TileCount) {
+            RenderTile(State->RenderBuffer, &State->Scene, TileIndex);
+            if(TileIndex + 1 == State->TileCount) {
+              Lock.lock();
+              State->WorkerState = worker_state::work_completed;
+              Lock.unlock();
+              State->SyncEvent.notify_all();
+            }
+          }
+          else {
+            break;
+          }
         }
-      }
-      else {
         break;
       }
+      case worker_state::shutdown:
+        return;
+        break;
+      default:
+        State->SyncEvent.wait(Lock);
     }
   }
 }
@@ -206,12 +221,7 @@ static void CreateThreads(osx_state *State) {
 }
 
 static void DestroyThreads(osx_state *State) {
-  State->NextTileIndex.store(UI16_MAX, std::memory_order_relaxed);
-
-  for(memsize I=0; I<THREAD_COUNT; ++I) {
-    dispatch_semaphore_signal(State->WorkerSemaphore);
-  }
-
+  State->SyncEvent.notify_all();
   for(memsize I=0; I<THREAD_COUNT; ++I) {
     State->Threads[I].join();
   }
@@ -255,21 +265,34 @@ int main() {
   glEnable(GL_TEXTURE_2D);
 
   State.TileCount = InitRendering(State.RenderResolution);
-  State.WorkerSemaphore = dispatch_semaphore_create(0);
-  ReleaseAssert(State.WorkerSemaphore != NULL, "Could not create worker semaphore.");
-  State.MainSemaphore = dispatch_semaphore_create(0);
-  ReleaseAssert(State.MainSemaphore != NULL, "Could not create main semaphore.");
+  State.CurrentTileIndex = 0;
+  {
+    std::lock_guard<std::mutex> Lock(State.WorkerMutex);
+    State.WorkerState = worker_state::uninitialized;
+  }
+
   CreateThreads(&State);
 
   while(State.Running) {
     ProcessOSXMessages();
 
     if(State.Window.occlusionState & NSWindowOcclusionStateVisible) {
-      State.NextTileIndex.store(0, std::memory_order_relaxed);
-      for(memsize I=0; I<THREAD_COUNT; ++I) {
-        dispatch_semaphore_signal(State.WorkerSemaphore);
+      {
+        std::lock_guard<std::mutex> Lock(State.WorkerMutex);
+        State.CurrentTileIndex.store(0, std::memory_order_relaxed);
+        State.WorkerState = worker_state::work_scheduled;
       }
-      dispatch_semaphore_wait(State.MainSemaphore, DISPATCH_TIME_FOREVER);
+      State.SyncEvent.notify_all();
+
+      for(;;) {
+        std::unique_lock<std::mutex> Lock(State.WorkerMutex);
+        if(State.WorkerState == worker_state::work_completed) {
+          break;
+        }
+        else {
+          State.SyncEvent.wait(Lock);
+        }
+      }
 
       glTexImage2D(
         GL_TEXTURE_2D,
@@ -301,9 +324,13 @@ int main() {
     }
   }
 
+  {
+    std::lock_guard<std::mutex> Lock(State.WorkerMutex);
+    State.WorkerState = worker_state::shutdown;
+  }
+  State.SyncEvent.notify_all();
+
   DestroyThreads(&State);
-  dispatch_release(State.WorkerSemaphore);
-  dispatch_release(State.MainSemaphore);
   TerminateRendering();
 
   DestroyTexture(State.TextureHandle);
