@@ -197,9 +197,9 @@ void Draw(frame_buffer *Buffer, scene const *Scene) {
       (*Pixel).B = MinMemsize(255, RoundFP32(Brightness.Z));
 
       // Temp safe guard:
-      ReleaseAssert((*Pixel).R != 255, "Over exposure");
-      ReleaseAssert((*Pixel).G != 255, "Over exposure");
-      ReleaseAssert((*Pixel).B != 255, "Over exposure");
+      DebugAssert((*Pixel).R != 255);
+      DebugAssert((*Pixel).G != 255);
+      DebugAssert((*Pixel).B != 255);
     }
   }
 }
