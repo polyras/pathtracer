@@ -6,6 +6,7 @@
 #define BOUNCE_COUNT 1
 
 static const v3fp32 ArbitraryDirection = v3fp32::Normalize(v3fp32(15, 1, 67));
+static resolution Resolution;
 
 struct ray {
   v3fp32 Origin;
@@ -165,12 +166,20 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
   return Result;
 }
 
-void Draw(frame_buffer *Buffer, scene const *Scene) {
+void InitRendering(resolution AResolution) {
+  Resolution = AResolution;
+}
+
+void TerminateRendering() {
+
+}
+
+void Render(color *Buffer, scene const *Scene) {
   v3fp32 WorldPlaneCenter = Scene->Camera.Position + Scene->Camera.Direction;
   fp32 WorldPlaneWidth = TanFP32(Scene->Camera.FOV/2.0f)*2.0f;
 
-  ui16 ScreenPlaneWidth = Buffer->Resolution.Dimension.X;
-  ui16 ScreenPlaneHeight = Buffer->Resolution.Dimension.Y;
+  ui16 ScreenPlaneWidth = Resolution.Dimension.X;
+  ui16 ScreenPlaneHeight = Resolution.Dimension.Y;
   ui16 HalfScreenPlaneWidth = ScreenPlaneWidth * 0.5f;
   ui16 HalfScreenPlaneHeight = ScreenPlaneHeight * 0.5f;
 
@@ -191,7 +200,7 @@ void Draw(frame_buffer *Buffer, scene const *Scene) {
 
       v3fp32 Radiance = CalcRadiance(Scene, Ray, 0);
       v3fp32 Brightness = Radiance * EXPOSURE;
-      color *Pixel = Buffer->Bitmap + ScreenPixelYOffset + X;
+      color *Pixel = Buffer + ScreenPixelYOffset + X;
       (*Pixel).R = MinMemsize(255, RoundFP32(Brightness.X));
       (*Pixel).G = MinMemsize(255, RoundFP32(Brightness.Y));
       (*Pixel).B = MinMemsize(255, RoundFP32(Brightness.Z));

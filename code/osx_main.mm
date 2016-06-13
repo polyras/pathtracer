@@ -12,8 +12,9 @@ struct osx_state {
   NSWindow *Window;
   NSOpenGLContext *OGLContext;
   GLuint TextureHandle;
-  frame_buffer FrameBuffer;
+  color *RenderBuffer;
   resolution WindowResolution;
+  resolution RenderResolution;
   scene Scene;
 };
 
@@ -154,25 +155,25 @@ static void DestroyTexture(GLuint TextureHandle) {
   glDeleteTextures(1, &TextureHandle);
 }
 
-static void InitFrameBuffer(frame_buffer *Buffer) {
-  Buffer->Resolution.Dimension.Set(160, 120);
-  memsize PixelCount = Buffer->Resolution.Dimension.X * Buffer->Resolution.Dimension.Y;
-  Buffer->Bitmap = new (std::nothrow) color[PixelCount];
-  ReleaseAssert(Buffer->Bitmap != nullptr, "Could not allocate bitmap.");
+static void InitPixelBuffer(osx_state *State) {
+  memsize PixelCount = State->RenderResolution.CalcCount();
+  State->RenderBuffer = new (std::nothrow) color[PixelCount];
+  ReleaseAssert(State->RenderBuffer != nullptr, "Could not allocate render buffer.");
 }
 
-static void TerminateFrameBuffer(frame_buffer *Buffer) {
-  delete[] Buffer->Bitmap;
-  Buffer->Bitmap = nullptr;
+static void TerminateFrameBuffer(osx_state *State) {
+  delete[] State->RenderBuffer;
+  State->RenderBuffer = nullptr;
 }
 
 int main() {
   osx_state State;
-  InitFrameBuffer(&State.FrameBuffer);
   State.Running = true;
   State.Window = nullptr;
   State.OGLContext = nullptr;
   State.WindowResolution.Dimension.Set(1200, 800);
+  State.RenderResolution.Dimension.Set(160, 120);
+  InitPixelBuffer(&State);
 
   InitScene1(&State.Scene);
 
@@ -202,22 +203,24 @@ int main() {
   glEnable(GL_FRAMEBUFFER_SRGB);
   glEnable(GL_TEXTURE_2D);
 
+  InitRendering(State.RenderResolution);
+
   while(State.Running) {
     ProcessOSXMessages();
 
     if(State.Window.occlusionState & NSWindowOcclusionStateVisible) {
-      Draw(&State.FrameBuffer, &State.Scene);
+      Render(State.RenderBuffer, &State.Scene);
 
       glTexImage2D(
         GL_TEXTURE_2D,
         0,
         GL_RGB,
-        State.FrameBuffer.Resolution.Dimension.X,
-        State.FrameBuffer.Resolution.Dimension.Y,
+        State.RenderResolution.Dimension.X,
+        State.RenderResolution.Dimension.Y,
         0,
         GL_RGB,
         GL_UNSIGNED_BYTE,
-        State.FrameBuffer.Bitmap
+        State.RenderBuffer
       );
 
       glBegin(GL_QUADS);
@@ -238,9 +241,11 @@ int main() {
     }
   }
 
+  TerminateRendering();
+
   DestroyTexture(State.TextureHandle);
 
-  TerminateFrameBuffer(&State.FrameBuffer);
+  TerminateFrameBuffer(&State);
 
   {
     PathtracerAppDelegate *D = App.delegate;
