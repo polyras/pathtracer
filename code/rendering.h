@@ -51,6 +51,6 @@ struct resolution {
   }
 };
 
-void InitRendering(resolution Resolution);
-void Render(color *Buffer, scene const *Scene);
+memsize InitRendering(resolution Resolution);
+void RenderTile(color *Buffer, scene const *Scene, memsize TileIndex);
 void TerminateRendering();

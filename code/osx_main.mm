@@ -16,6 +16,7 @@ struct osx_state {
   resolution WindowResolution;
   resolution RenderResolution;
   scene Scene;
+  memsize TileCount;
 };
 
 @interface PathtracerAppDelegate : NSObject <NSApplicationDelegate>
@@ -203,13 +204,15 @@ int main() {
   glEnable(GL_FRAMEBUFFER_SRGB);
   glEnable(GL_TEXTURE_2D);
 
-  InitRendering(State.RenderResolution);
+  State.TileCount = InitRendering(State.RenderResolution);
 
   while(State.Running) {
     ProcessOSXMessages();
 
     if(State.Window.occlusionState & NSWindowOcclusionStateVisible) {
-      Render(State.RenderBuffer, &State.Scene);
+      for(memsize I=0; I<State.TileCount; ++I) {
+        RenderTile(State.RenderBuffer, &State.Scene, I);
+      }
 
       glTexImage2D(
         GL_TEXTURE_2D,
