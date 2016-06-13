@@ -9,9 +9,6 @@
 #include "rendering.h"
 #include "scene1.h"
 
-#include <sys/time.h>
-#include <unistd.h>
-
 #define THREAD_COUNT 4
 
 struct osx_state {
@@ -180,21 +177,16 @@ static void TerminateFrameBuffer(osx_state *State) {
 
 static void WorkerMain(osx_state *State) {
   for(;;) {
-    // printf("Worker going to sleep\n");
     dispatch_semaphore_wait(State->WorkerSemaphore, DISPATCH_TIME_FOREVER);
-    // printf("Worker woke up!\n");
 
     for(;;) {
       ui16 TileIndex = State->NextTileIndex.load(std::memory_order_relaxed);
       if(TileIndex == UI16_MAX) {
-        // printf("Worker Returning\n");
         return;
       }
 
       TileIndex = State->NextTileIndex.fetch_add(1, std::memory_order_relaxed);
-      // printf("Worker got tile index %d\n", TileIndex);
       if(TileIndex < State->TileCount) {
-        // printf("Render %d\n", TileIndex);
         RenderTile(State->RenderBuffer, &State->Scene, TileIndex);
         if(TileIndex + 1 == State->TileCount) {
           dispatch_semaphore_signal(State->MainSemaphore);
@@ -204,7 +196,6 @@ static void WorkerMain(osx_state *State) {
         break;
       }
     }
-    // printf("Going to sleep.\n");
   }
 }
 
@@ -224,12 +215,6 @@ static void DestroyThreads(osx_state *State) {
   for(memsize I=0; I<THREAD_COUNT; ++I) {
     State->Threads[I].join();
   }
-}
-
-uusec64 GetTime() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (tv.tv_sec*1000000+tv.tv_usec);
 }
 
 int main() {
@@ -280,16 +265,11 @@ int main() {
     ProcessOSXMessages();
 
     if(State.Window.occlusionState & NSWindowOcclusionStateVisible) {
-      uusec64 Start = GetTime();
       State.NextTileIndex.store(0, std::memory_order_relaxed);
       for(memsize I=0; I<THREAD_COUNT; ++I) {
-        // printf("Signal worker to wake up!\n");
         dispatch_semaphore_signal(State.WorkerSemaphore);
       }
-      // printf("Main sleeping...\n");
       dispatch_semaphore_wait(State.MainSemaphore, DISPATCH_TIME_FOREVER);
-      // printf("Main woke up\n");
-      printf("Frame time: %llu\n", (GetTime()-Start)/1000);
 
       glTexImage2D(
         GL_TEXTURE_2D,
