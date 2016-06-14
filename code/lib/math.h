@@ -59,6 +59,12 @@ struct v3fp32 {
     Z = NewZ;
   }
 
+  void Set(fp32 New) {
+    X = New;
+    Y = New;
+    Z = New;
+  }
+
   bool IsZero() {
     return X == 0 && Y == 0 && Z == 0;
   }

@@ -184,16 +184,19 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
     return v3fp32(0.01f, 0.1f, 0.4f);
   }
 
-  v3fp32 SunPosDifference = Scene->Sun.Position - ObjectTraceResult.Position;
-  v3fp32 SunDirection = v3fp32::Normalize(SunPosDifference);
-  ray SunRay = { .Origin = ObjectTraceResult.Position, .Direction = SunDirection };
-  trace_result SunTraceResult = Trace(Scene, SunRay);
   v3fp32 DirectLight(0);
+  v3fp32 SunPosDifference = Scene->Sun.Position - ObjectTraceResult.Position;
+  if(v3fp32::Dot(SunPosDifference, ObjectTraceResult.Normal) > 0) {
+    v3fp32 SunDirection = v3fp32::Normalize(SunPosDifference);
+    ray SunRay = { .Origin = ObjectTraceResult.Position, .Direction = SunDirection };
+    trace_result SunTraceResult = Trace(Scene, SunRay);
 
-  if(!SunTraceResult.Hit) {
-    DirectLight = v3fp32(MaxFP32(0, v3fp32::Dot(ObjectTraceResult.Normal, SunDirection)));
-    DirectLight *= Scene->Sun.Irradiance;
+    if(!SunTraceResult.Hit) {
+      fp32 Attenuation = v3fp32::Dot(ObjectTraceResult.Normal, SunDirection);
+      DirectLight.Set(Scene->Sun.Irradiance * Attenuation);
+    }
   }
+
 
   for(memsize I=0; I<Scene->SphereCount; ++I) {
     if(I == ObjectTraceResult.ID) {
