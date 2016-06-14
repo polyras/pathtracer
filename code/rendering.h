@@ -45,11 +45,12 @@ struct scene {
 
 struct resolution {
   v2ui16 Dimension;
+
+  memsize CalcCount() {
+    return Dimension.X * Dimension.Y;
+  }
 };
 
-struct frame_buffer {
-  resolution Resolution;
-  color *Bitmap;
-};
-
-void Draw(frame_buffer *Buffer, scene const *Scene);
+memsize InitRendering(resolution Resolution);
+void RenderTile(color *Buffer, scene const *Scene, memsize TileIndex);
+void TerminateRendering();

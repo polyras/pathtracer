@@ -2,19 +2,36 @@
 #include <AppKit/AppKit.h>
 #include <OpenGL/gl.h>
 #include <new>
+#include <thread>
 #include "lib/math.h"
 #include "lib/assert.h"
 #include "rendering.h"
 #include "scene1.h"
+
+#define THREAD_COUNT 4
+
+enum struct worker_state {
+  uninitialized,
+  work_scheduled,
+  work_completed,
+  shutdown
+};
 
 struct osx_state {
   bool Running;
   NSWindow *Window;
   NSOpenGLContext *OGLContext;
   GLuint TextureHandle;
-  frame_buffer FrameBuffer;
+  color *RenderBuffer;
   resolution WindowResolution;
+  resolution RenderResolution;
   scene Scene;
+  memsize TileCount;
+  std::thread Threads[THREAD_COUNT];
+  std::atomic<memsize> CurrentTileIndex;
+  worker_state WorkerState;
+  std::mutex WorkerMutex;
+  std::condition_variable SyncEvent;
 };
 
 @interface PathtracerAppDelegate : NSObject <NSApplicationDelegate>
@@ -154,25 +171,70 @@ static void DestroyTexture(GLuint TextureHandle) {
   glDeleteTextures(1, &TextureHandle);
 }
 
-static void InitFrameBuffer(frame_buffer *Buffer) {
-  Buffer->Resolution.Dimension.Set(160, 120);
-  memsize PixelCount = Buffer->Resolution.Dimension.X * Buffer->Resolution.Dimension.Y;
-  Buffer->Bitmap = new (std::nothrow) color[PixelCount];
-  ReleaseAssert(Buffer->Bitmap != nullptr, "Could not allocate bitmap.");
+static void InitPixelBuffer(osx_state *State) {
+  memsize PixelCount = State->RenderResolution.CalcCount();
+  State->RenderBuffer = new (std::nothrow) color[PixelCount];
+  ReleaseAssert(State->RenderBuffer != nullptr, "Could not allocate render buffer.");
 }
 
-static void TerminateFrameBuffer(frame_buffer *Buffer) {
-  delete[] Buffer->Bitmap;
-  Buffer->Bitmap = nullptr;
+static void TerminateFrameBuffer(osx_state *State) {
+  delete[] State->RenderBuffer;
+  State->RenderBuffer = nullptr;
+}
+
+static void WorkerMain(osx_state *State) {
+  for(;;) {
+    std::unique_lock<std::mutex> Lock(State->WorkerMutex);
+    switch(State->WorkerState) {
+      case worker_state::work_scheduled: {
+        Lock.unlock();
+        for(;;) {
+          memsize TileIndex = State->CurrentTileIndex.fetch_add(1, std::memory_order_relaxed);
+          if(TileIndex < State->TileCount) {
+            RenderTile(State->RenderBuffer, &State->Scene, TileIndex);
+            if(TileIndex + 1 == State->TileCount) {
+              Lock.lock();
+              State->WorkerState = worker_state::work_completed;
+              Lock.unlock();
+              State->SyncEvent.notify_all();
+            }
+          }
+          else {
+            break;
+          }
+        }
+        break;
+      }
+      case worker_state::shutdown:
+        return;
+        break;
+      default:
+        State->SyncEvent.wait(Lock);
+    }
+  }
+}
+
+static void CreateThreads(osx_state *State) {
+  for(memsize I=0; I<THREAD_COUNT; ++I) {
+    State->Threads[I] = std::thread(WorkerMain, State);
+  }
+}
+
+static void DestroyThreads(osx_state *State) {
+  State->SyncEvent.notify_all();
+  for(memsize I=0; I<THREAD_COUNT; ++I) {
+    State->Threads[I].join();
+  }
 }
 
 int main() {
   osx_state State;
-  InitFrameBuffer(&State.FrameBuffer);
   State.Running = true;
   State.Window = nullptr;
   State.OGLContext = nullptr;
   State.WindowResolution.Dimension.Set(1200, 800);
+  State.RenderResolution.Dimension.Set(160, 120);
+  InitPixelBuffer(&State);
 
   InitScene1(&State.Scene);
 
@@ -202,22 +264,46 @@ int main() {
   glEnable(GL_FRAMEBUFFER_SRGB);
   glEnable(GL_TEXTURE_2D);
 
+  State.TileCount = InitRendering(State.RenderResolution);
+  State.CurrentTileIndex = 0;
+  {
+    std::lock_guard<std::mutex> Lock(State.WorkerMutex);
+    State.WorkerState = worker_state::uninitialized;
+  }
+
+  CreateThreads(&State);
+
   while(State.Running) {
     ProcessOSXMessages();
 
     if(State.Window.occlusionState & NSWindowOcclusionStateVisible) {
-      Draw(&State.FrameBuffer, &State.Scene);
+      {
+        std::lock_guard<std::mutex> Lock(State.WorkerMutex);
+        State.CurrentTileIndex.store(0, std::memory_order_relaxed);
+        State.WorkerState = worker_state::work_scheduled;
+      }
+      State.SyncEvent.notify_all();
+
+      for(;;) {
+        std::unique_lock<std::mutex> Lock(State.WorkerMutex);
+        if(State.WorkerState == worker_state::work_completed) {
+          break;
+        }
+        else {
+          State.SyncEvent.wait(Lock);
+        }
+      }
 
       glTexImage2D(
         GL_TEXTURE_2D,
         0,
         GL_RGB,
-        State.FrameBuffer.Resolution.Dimension.X,
-        State.FrameBuffer.Resolution.Dimension.Y,
+        State.RenderResolution.Dimension.X,
+        State.RenderResolution.Dimension.Y,
         0,
         GL_RGB,
         GL_UNSIGNED_BYTE,
-        State.FrameBuffer.Bitmap
+        State.RenderBuffer
       );
 
       glBegin(GL_QUADS);
@@ -238,9 +324,18 @@ int main() {
     }
   }
 
+  {
+    std::lock_guard<std::mutex> Lock(State.WorkerMutex);
+    State.WorkerState = worker_state::shutdown;
+  }
+  State.SyncEvent.notify_all();
+
+  DestroyThreads(&State);
+  TerminateRendering();
+
   DestroyTexture(State.TextureHandle);
 
-  TerminateFrameBuffer(&State.FrameBuffer);
+  TerminateFrameBuffer(&State);
 
   {
     PathtracerAppDelegate *D = App.delegate;

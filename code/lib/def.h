@@ -5,6 +5,7 @@
 #include <float.h>
 
 #define FP32_MAX FLT_MAX
+#define UI16_MAX UINT16_MAX
 #define MEMSIZE_MAX SIZE_MAX
 #define PI_INV (1.0 / M_PI)
 

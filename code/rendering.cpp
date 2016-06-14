@@ -1,11 +1,20 @@
+#include <new>
 #include "rendering.h"
 #include "lib/assert.h"
 
 #define EXPOSURE 30
+#define TILE_SIZE 16
 #define SAMPLE_COUNT 32
 #define BOUNCE_COUNT 1
 
+struct tile {
+  v2ui16 Pos;
+  v2ui16 Size;
+};
+
 static const v3fp32 ArbitraryDirection = v3fp32::Normalize(v3fp32(15, 1, 67));
+static resolution Resolution;
+static tile *Tiles = nullptr;
 
 struct ray {
   v3fp32 Origin;
@@ -165,12 +174,51 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
   return Result;
 }
 
-void Draw(frame_buffer *Buffer, scene const *Scene) {
+memsize InitRendering(resolution AResolution) {
+  Resolution = AResolution;
+
+  memsize TileHorizontalCount = (Resolution.Dimension.X + TILE_SIZE - 1) / TILE_SIZE;
+  memsize TileVerticalCount = (Resolution.Dimension.Y + TILE_SIZE - 1) / TILE_SIZE;
+  memsize TileCount = TileHorizontalCount * TileVerticalCount;
+  Tiles = new (std::nothrow) tile[TileCount];
+  ReleaseAssert(Tiles != nullptr, "Could not allocate tiles.");
+
+  memsize X = 0, Y = 0;
+  for(memsize I=0; I<TileCount; ++I) {
+    DebugAssert(Y <= Resolution.Dimension.Y);
+    DebugAssert(X <= Resolution.Dimension.X);
+
+    tile *Tile = Tiles + I;
+    Tile->Pos.Set(X, Y);
+    memsize RemainingWidth = Resolution.Dimension.X - X;
+    Tile->Size.X = MinMemsize(TILE_SIZE, RemainingWidth);
+
+    memsize RemainingHeight = Resolution.Dimension.Y - Y;
+    Tile->Size.Y = MinMemsize(TILE_SIZE, RemainingHeight);
+
+    X += Tile->Size.X;
+    if(X == Resolution.Dimension.X) {
+      X = 0;
+      Y += TILE_SIZE;
+    }
+  }
+
+  return TileCount;
+}
+
+void TerminateRendering() {
+  delete[] Tiles;
+  Tiles = nullptr;
+}
+
+void RenderTile(color *Buffer, scene const *Scene, memsize TileIndex) {
+  tile *Tile = Tiles + TileIndex;
+
   v3fp32 WorldPlaneCenter = Scene->Camera.Position + Scene->Camera.Direction;
   fp32 WorldPlaneWidth = TanFP32(Scene->Camera.FOV/2.0f)*2.0f;
 
-  ui16 ScreenPlaneWidth = Buffer->Resolution.Dimension.X;
-  ui16 ScreenPlaneHeight = Buffer->Resolution.Dimension.Y;
+  ui16 ScreenPlaneWidth = Resolution.Dimension.X;
+  ui16 ScreenPlaneHeight = Resolution.Dimension.Y;
   ui16 HalfScreenPlaneWidth = ScreenPlaneWidth * 0.5f;
   ui16 HalfScreenPlaneHeight = ScreenPlaneHeight * 0.5f;
 
@@ -179,11 +227,13 @@ void Draw(frame_buffer *Buffer, scene const *Scene) {
   v3fp32 Up(0, 1, 0);
 
   ui32 ScreenPixelYOffset;
-  for(ui16 Y=0; Y<ScreenPlaneHeight; ++Y) {
+  ui16 EndX = Tile->Pos.X + Tile->Size.X;
+  ui16 EndY = Tile->Pos.Y + Tile->Size.Y;
+  for(ui16 Y=Tile->Pos.Y; Y<EndY; ++Y) {
     ScreenPixelYOffset = Y * ScreenPlaneWidth;
     fp32 ScreenRowCenterY = 0.5f + (static_cast<si16>(Y) - HalfScreenPlaneHeight);
     v3fp32 WorldRowCenter = WorldPlaneCenter + Up * (ScreenRowCenterY * ScreenToWorldPlaneRatio);
-    for(ui16 X=0; X<ScreenPlaneWidth; ++X) {
+    for(ui16 X=Tile->Pos.X; X<EndX; ++X) {
       fp32 PixelColCenterX = 0.5f + (static_cast<si16>(X) - HalfScreenPlaneWidth);
       v3fp32 WorldPixelPosition = WorldRowCenter + Scene->Camera.Right * (PixelColCenterX * ScreenToWorldPlaneRatio);
       v3fp32 Difference = WorldPixelPosition - Scene->Camera.Position;
@@ -191,7 +241,7 @@ void Draw(frame_buffer *Buffer, scene const *Scene) {
 
       v3fp32 Radiance = CalcRadiance(Scene, Ray, 0);
       v3fp32 Brightness = Radiance * EXPOSURE;
-      color *Pixel = Buffer->Bitmap + ScreenPixelYOffset + X;
+      color *Pixel = Buffer + ScreenPixelYOffset + X;
       (*Pixel).R = MinMemsize(255, RoundFP32(Brightness.X));
       (*Pixel).G = MinMemsize(255, RoundFP32(Brightness.Y));
       (*Pixel).B = MinMemsize(255, RoundFP32(Brightness.Z));

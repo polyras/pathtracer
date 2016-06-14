@@ -57,6 +57,15 @@ static void AddCube(scene *Scene, fp32 Size, v3fp32 Pos, color Color) {
     v3fp32(0.5f * Size, 0.5f * Size, 0.5f * Size),
     v3fp32(0.5f * Size, 0.5f * Size, -0.5f * Size)
   );
+
+  // back
+  AddQuad(
+    Scene, Pos, Color,
+    v3fp32(-0.5f * Size, 0.5f * Size, 0.5f * Size),
+    v3fp32(0.5f * Size, 0.5f * Size, 0.5f * Size),
+    v3fp32(-0.5f * Size, -0.5f * Size, 0.5f * Size),
+    v3fp32(0.5f * Size, -0.5f * Size, 0.5f * Size)
+  );
 }
 
 static void SetupGreenBox(scene *Scene) {
@@ -101,7 +110,6 @@ void InitScene1(scene *Scene) {
   // Ground
   SetupGround(Scene);
 
-  Scene->Sun.Position.Set(10.0f, 10.0f, 0.0f);
-  Scene->Sun.Position.Set(20.0, 10, -20);
+  Scene->Sun.Position.Set(5.0f, 5.0f, -20.0f);
   Scene->Sun.Irradiance = 15.0f;
 }
