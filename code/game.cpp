@@ -20,7 +20,6 @@ static void AddQuad(
   );
 }
 
-
 static void AddCube(scene *Scene, fp32 Size, v3fp32 Pos, color Color) {
   // front upper
   AddQuad(
@@ -95,11 +94,11 @@ static void SetupGround(scene *Scene) {
   );
 }
 
-static void SetupBlueSphere(scene *Scene) {
-  v3fp32 Position(0.0f, 0.5f, 4.0f);
-  v3fp32 Intensity(0.0f, 0.0f, 0.0f);
+static void SetupLightSphere(scene *Scene) {
+  v3fp32 Position(0.4f, 0.8f, 4.5f);
+  v3fp32 Intensity(7.0f, 7.0f, 7.0f);
   color Albedo(19, 100, 242);
-  fp32 Radius = 0.5f;
+  fp32 Radius = 0.2f;
   Scene->AddSphere(Position, Radius, Intensity, Albedo);
 }
 
@@ -114,7 +113,7 @@ void InitGame(scene *Scene) {
   SetupGreenBox(Scene);
   SetupRedBox(Scene);
   SetupOrangeBox(Scene);
-  SetupBlueSphere(Scene);
+  SetupLightSphere(Scene);
 
   // Ground
   SetupGround(Scene);

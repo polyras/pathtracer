@@ -2,12 +2,13 @@
 #include "rendering.h"
 #include "lib/assert.h"
 
-#define EXPOSURE 30
+#define EXPOSURE 20
 #define TILE_SIZE 16
 #define SAMPLE_COUNT 32
 #define BOUNCE_COUNT 1
 
 static const fp32 Epsilon = 0.0001f;
+static const fp32 Inv255 = 1.0f / 255.0f;
 
 struct tile {
   v2ui16 Pos;
@@ -24,9 +25,11 @@ struct ray {
 };
 
 struct trace_result {
+  memsize ID;
   bool Hit;
   v3fp32 Position;
   v3fp32 Normal;
+  v3fp32 Intensity;
   color Albedo;
 };
 
@@ -37,6 +40,7 @@ scene::scene() {
 void scene::AddTriangle(v3fp32 V0, v3fp32 V1, v3fp32 V2, color Albedo) {
   DebugAssert(TriangleCount != sizeof(Triangles) / sizeof(triangle));
   triangle *T = Triangles + TriangleCount;
+  T->ID = NextObjectID++;
   T->Vertices[0] = V0;
   T->Vertices[1] = V1;
   T->Vertices[2] = V2;
@@ -47,6 +51,7 @@ void scene::AddTriangle(v3fp32 V0, v3fp32 V1, v3fp32 V2, color Albedo) {
 void scene::AddSphere(v3fp32 Pos, fp32 Radius, v3fp32 Intensity, color Albedo) {
   DebugAssert(SphereCount != sizeof(Spheres) / sizeof(sphere));
   sphere *S = Spheres + SphereCount;
+  S->ID = NextObjectID++;
   S->Pos = Pos;
   S->Radius = Radius;
   S->Intensity = Intensity;
@@ -149,6 +154,8 @@ static trace_result Trace(scene const *Scene, ray Ray) {
         Result.Position = Ray.Origin + Ray.Direction * ShortestDistance;
         Result.Normal = Triangle->CalcNormal();
         Result.Albedo = Triangle->Albedo;
+        Result.Intensity = v3fp32(0.0f);
+        Result.ID = Triangle->ID;
       }
     }
   }
@@ -162,6 +169,8 @@ static trace_result Trace(scene const *Scene, ray Ray) {
         Result.Position = Ray.Origin + Ray.Direction * ShortestDistance;
         Result.Normal = Sphere->CalcNormal(Result.Position);
         Result.Albedo = Sphere->Albedo;
+        Result.Intensity = Sphere->Intensity;
+        Result.ID = Sphere->ID;
       }
     }
   }
@@ -172,7 +181,7 @@ static trace_result Trace(scene const *Scene, ray Ray) {
 static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
   trace_result ObjectTraceResult = Trace(Scene, Ray);
   if(!ObjectTraceResult.Hit) {
-    return v3fp32(2.2f);
+    return v3fp32(0.01f, 0.1f, 0.4f);
   }
 
   v3fp32 SunPosDifference = Scene->Sun.Position - ObjectTraceResult.Position;
@@ -184,6 +193,28 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
   if(!SunTraceResult.Hit) {
     DirectLight = v3fp32(MaxFP32(0, v3fp32::Dot(ObjectTraceResult.Normal, SunDirection)));
     DirectLight *= Scene->Sun.Irradiance;
+  }
+
+  for(memsize I=0; I<Scene->SphereCount; ++I) {
+    if(I == ObjectTraceResult.ID) {
+      continue;
+    }
+    sphere const *Sphere = Scene->Spheres + I;
+    v3fp32 SpatialDifference = Sphere->Pos - ObjectTraceResult.Position;
+    if(v3fp32::Dot(SpatialDifference, ObjectTraceResult.Normal) < 0) {
+      continue;
+    }
+    fp32 Distance = SpatialDifference.CalcLength();
+    v3fp32 Direction = SpatialDifference / Distance;
+    ray SphereLightRay = {
+      .Origin = ObjectTraceResult.Position,
+      .Direction = Direction
+    };
+    trace_result SphereLightTraceResult = Trace(Scene, SphereLightRay);
+    if(SphereLightTraceResult.Hit && SphereLightTraceResult.ID == Sphere->ID) {
+      fp32 Attenuation = v3fp32::Dot(ObjectTraceResult.Normal, Direction) / (Distance*Distance);
+      DirectLight += Sphere->Intensity * Attenuation;
+    }
   }
 
   v3fp32 IndirectLight(0);
@@ -215,15 +246,15 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
   }
 
   v3fp32 Albedo(
-    static_cast<fp32>(ObjectTraceResult.Albedo.R) / 255.0f,
-    static_cast<fp32>(ObjectTraceResult.Albedo.G) / 255.0f,
-    static_cast<fp32>(ObjectTraceResult.Albedo.B) / 255.0f
+    static_cast<fp32>(ObjectTraceResult.Albedo.R) * Inv255,
+    static_cast<fp32>(ObjectTraceResult.Albedo.G) * Inv255,
+    static_cast<fp32>(ObjectTraceResult.Albedo.B) * Inv255
   );
-  v3fp32 Result = v3fp32::Hadamard(
+  v3fp32 ReflectedRadiance = v3fp32::Hadamard(
     DirectLight + IndirectLight,
     Albedo * PI_INV
   );
-  return Result;
+  return ReflectedRadiance + ObjectTraceResult.Intensity;
 }
 
 memsize InitRendering(resolution AResolution) {

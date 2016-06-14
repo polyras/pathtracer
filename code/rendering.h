@@ -27,6 +27,7 @@ struct sun {
 struct ray;
 
 struct triangle {
+  memsize ID;
   v3fp32 Vertices[3];
   color Albedo;
   bool Intersect(ray Ray, fp32 *Distance) const;
@@ -34,6 +35,7 @@ struct triangle {
 };
 
 struct sphere {
+  memsize ID;
   v3fp32 Pos;
   fp32 Radius;
   v3fp32 Intensity;
@@ -45,6 +47,7 @@ struct sphere {
 struct scene {
   camera Camera;
   sun Sun;
+  memsize NextObjectID = 0;
   triangle Triangles[50];
   memsize TriangleCount;
   sphere Spheres[10];
