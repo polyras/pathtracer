@@ -24,13 +24,30 @@ struct ray {
   v3fp32 Direction;
 };
 
-struct trace_result {
-  memsize ID;
+enum struct object_type {
+  triangle,
+  sphere
+};
+
+struct object_query_result {
   bool Hit;
+  object_type Type;
+  memsize Index;
+  fp32 Distance;
+};
+
+struct detail_query_result {
+  bool Hit;
+  memsize ID;
   v3fp32 Position;
   v3fp32 Normal;
   v3fp32 Intensity;
   color Albedo;
+};
+
+struct id_query_result {
+  bool Hit;
+  memsize ID;
 };
 
 scene::scene() {
@@ -139,10 +156,10 @@ v3fp32 triangle::CalcNormal() const {
   return Normal;
 }
 
-static trace_result Trace(scene const *Scene, ray Ray) {
+static object_query_result QueryObject(scene const *Scene, ray Ray) {
   fp32 ShortestDistance = FP32_MAX;
 
-  trace_result Result = { .Hit = false };
+  object_query_result Result = { .Hit = false };
   fp32 TestDistance;
 
   for(memsize I=0; I<Scene->TriangleCount; ++I) {
@@ -151,11 +168,8 @@ static trace_result Trace(scene const *Scene, ray Ray) {
       if(TestDistance < ShortestDistance) {
         ShortestDistance = TestDistance;
         Result.Hit = true;
-        Result.Position = Ray.Origin + Ray.Direction * ShortestDistance;
-        Result.Normal = Triangle->CalcNormal();
-        Result.Albedo = Triangle->Albedo;
-        Result.Intensity = v3fp32(0.0f);
-        Result.ID = Triangle->ID;
+        Result.Type = object_type::triangle;
+        Result.Index = I;
       }
     }
   }
@@ -166,56 +180,115 @@ static trace_result Trace(scene const *Scene, ray Ray) {
       if(TestDistance < ShortestDistance) {
         ShortestDistance = TestDistance;
         Result.Hit = true;
-        Result.Position = Ray.Origin + Ray.Direction * ShortestDistance;
-        Result.Normal = Sphere->CalcNormal(Result.Position);
-        Result.Albedo = Sphere->Albedo;
-        Result.Intensity = Sphere->Intensity;
-        Result.ID = Sphere->ID;
+        Result.Type = object_type::sphere;
+        Result.Index = I;
       }
     }
   }
 
+  Result.Distance = ShortestDistance;
+
   return Result;
 }
 
+static id_query_result QueryID(scene const *Scene, ray Ray) {
+  object_query_result ObjectResult = QueryObject(Scene, Ray);
+  id_query_result IDResult;
+
+  if(!ObjectResult.Hit) {
+    IDResult.Hit = false;
+    return IDResult;
+  }
+
+  IDResult.Hit = true;
+  switch(ObjectResult.Type) {
+    case object_type::triangle: {
+      IDResult.ID = Scene->Triangles[ObjectResult.Index].ID;
+      break;
+    }
+    case object_type::sphere: {
+      IDResult.ID = Scene->Spheres[ObjectResult.Index].ID;
+      break;
+    }
+    default:
+      DebugAssert(false);
+  }
+
+  return IDResult;
+}
+
+static detail_query_result QueryDetails(scene const *Scene, ray Ray) {
+  object_query_result ObjectResult = QueryObject(Scene, Ray);
+  detail_query_result DetailResult;
+
+  if(!ObjectResult.Hit) {
+    DetailResult.Hit = false;
+    return DetailResult;
+  }
+
+  DetailResult.Hit = true;
+  DetailResult.Position = Ray.Origin + Ray.Direction * ObjectResult.Distance;
+  switch(ObjectResult.Type) {
+    case object_type::triangle: {
+      triangle const *Triangle = Scene->Triangles + ObjectResult.Index;
+      DetailResult.Normal = Triangle->CalcNormal();
+      DetailResult.Albedo = Triangle->Albedo;
+      DetailResult.Intensity = v3fp32(0.0f);
+      DetailResult.ID = Triangle->ID;
+      break;
+    }
+    case object_type::sphere: {
+      sphere const *Sphere = Scene->Spheres + ObjectResult.Index;
+      DetailResult.Normal = Sphere->CalcNormal(DetailResult.Position);
+      DetailResult.Albedo = Sphere->Albedo;
+      DetailResult.Intensity = Sphere->Intensity;
+      DetailResult.ID = Sphere->ID;
+      break;
+    }
+    default:
+      DebugAssert(false);
+  }
+
+  return DetailResult;
+}
+
 static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
-  trace_result ObjectTraceResult = Trace(Scene, Ray);
-  if(!ObjectTraceResult.Hit) {
+  detail_query_result ObjectQueryResult = QueryDetails(Scene, Ray);
+  if(!ObjectQueryResult.Hit) {
     return v3fp32(0.01f, 0.1f, 0.4f);
   }
 
   v3fp32 DirectLight(0);
-  v3fp32 SunPosDifference = Scene->Sun.Position - ObjectTraceResult.Position;
-  if(v3fp32::Dot(SunPosDifference, ObjectTraceResult.Normal) > 0) {
+  v3fp32 SunPosDifference = Scene->Sun.Position - ObjectQueryResult.Position;
+  if(v3fp32::Dot(SunPosDifference, ObjectQueryResult.Normal) > 0) {
     v3fp32 SunDirection = v3fp32::Normalize(SunPosDifference);
-    ray SunRay = { .Origin = ObjectTraceResult.Position, .Direction = SunDirection };
-    trace_result SunTraceResult = Trace(Scene, SunRay);
+    ray SunRay = { .Origin = ObjectQueryResult.Position, .Direction = SunDirection };
+    id_query_result SunQueryResult = QueryID(Scene, SunRay);
 
-    if(!SunTraceResult.Hit) {
-      fp32 Attenuation = v3fp32::Dot(ObjectTraceResult.Normal, SunDirection);
+    if(!SunQueryResult.Hit) {
+      fp32 Attenuation = v3fp32::Dot(ObjectQueryResult.Normal, SunDirection);
       DirectLight.Set(Scene->Sun.Irradiance * Attenuation);
     }
   }
 
-
   for(memsize I=0; I<Scene->SphereCount; ++I) {
-    if(I == ObjectTraceResult.ID) {
+    if(I == ObjectQueryResult.ID) {
       continue;
     }
     sphere const *Sphere = Scene->Spheres + I;
-    v3fp32 SpatialDifference = Sphere->Pos - ObjectTraceResult.Position;
-    if(v3fp32::Dot(SpatialDifference, ObjectTraceResult.Normal) < 0) {
+    v3fp32 SpatialDifference = Sphere->Pos - ObjectQueryResult.Position;
+    if(v3fp32::Dot(SpatialDifference, ObjectQueryResult.Normal) < 0) {
       continue;
     }
     fp32 Distance = SpatialDifference.CalcLength();
     v3fp32 Direction = SpatialDifference / Distance;
     ray SphereLightRay = {
-      .Origin = ObjectTraceResult.Position,
+      .Origin = ObjectQueryResult.Position,
       .Direction = Direction
     };
-    trace_result SphereLightTraceResult = Trace(Scene, SphereLightRay);
-    if(SphereLightTraceResult.Hit && SphereLightTraceResult.ID == Sphere->ID) {
-      fp32 Attenuation = v3fp32::Dot(ObjectTraceResult.Normal, Direction) / (Distance*Distance);
+    id_query_result SphereLightQueryResult = QueryID(Scene, SphereLightRay);
+    if(SphereLightQueryResult.Hit && SphereLightQueryResult.ID == Sphere->ID) {
+      fp32 Attenuation = v3fp32::Dot(ObjectQueryResult.Normal, Direction) / (Distance*Distance);
       DirectLight += Sphere->Intensity * Attenuation;
     }
   }
@@ -223,13 +296,13 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
   v3fp32 IndirectLight(0);
   if(Depth != BOUNCE_COUNT) {
     m33fp32 Rotation;
-    Rotation.Col1 =  ArbitraryDirection - ObjectTraceResult.Normal * v3fp32::Dot(ArbitraryDirection, ObjectTraceResult.Normal);
+    Rotation.Col1 =  ArbitraryDirection - ObjectQueryResult.Normal * v3fp32::Dot(ArbitraryDirection, ObjectQueryResult.Normal);
     Rotation.Col1.Normalize();
-    Rotation.Col3 = ObjectTraceResult.Normal;
+    Rotation.Col3 = ObjectQueryResult.Normal;
     Rotation.Col2 = v3fp32::Cross(Rotation.Col1, Rotation.Col3);
 
     ray SampleRay;
-    SampleRay.Origin = ObjectTraceResult.Position;
+    SampleRay.Origin = ObjectQueryResult.Position;
     for(memsize I=0; I<SAMPLE_COUNT; ++I) {
       fp32 Random1 = drand48();
       fp32 Random2 = drand48();
@@ -243,21 +316,21 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
       );
 
       SampleRay.Direction = Rotation * SampleRay.Direction;
-      IndirectLight += CalcRadiance(Scene, SampleRay, Depth + 1) * v3fp32::Dot(ObjectTraceResult.Normal, SampleRay.Direction);
+      IndirectLight += CalcRadiance(Scene, SampleRay, Depth + 1) * v3fp32::Dot(ObjectQueryResult.Normal, SampleRay.Direction);
     }
     IndirectLight *= (2.0f * M_PI) / SAMPLE_COUNT;
   }
 
   v3fp32 Albedo(
-    static_cast<fp32>(ObjectTraceResult.Albedo.R) * Inv255,
-    static_cast<fp32>(ObjectTraceResult.Albedo.G) * Inv255,
-    static_cast<fp32>(ObjectTraceResult.Albedo.B) * Inv255
+    static_cast<fp32>(ObjectQueryResult.Albedo.R) * Inv255,
+    static_cast<fp32>(ObjectQueryResult.Albedo.G) * Inv255,
+    static_cast<fp32>(ObjectQueryResult.Albedo.B) * Inv255
   );
   v3fp32 ReflectedRadiance = v3fp32::Hadamard(
     DirectLight + IndirectLight,
     Albedo * PI_INV
   );
-  return ReflectedRadiance + ObjectTraceResult.Intensity;
+  return ReflectedRadiance + ObjectQueryResult.Intensity;
 }
 
 memsize InitRendering(resolution AResolution) {
