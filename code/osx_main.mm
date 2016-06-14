@@ -232,7 +232,7 @@ int main() {
   State.Running = true;
   State.Window = nullptr;
   State.OGLContext = nullptr;
-  State.WindowResolution.Dimension.Set(1200, 800);
+  State.WindowResolution.Dimension.Set(1600, 1200);
   State.RenderResolution.Dimension.Set(160, 120);
   InitPixelBuffer(&State);
 
