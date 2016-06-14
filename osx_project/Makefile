@@ -3,6 +3,7 @@ include MakefileSettings
 all: debug
 
 COMMON_FLAGS = -Wall -std=c++11 -ferror-limit=1 -fno-exceptions -fno-rtti
+# COMMON_FLAGS += -DBENCHMARK
 COMPILE_FLAGS = -iquote $(CODE_ROOT)
 release: COMMON_FLAGS += -O2
 debug: COMMON_FLAGS += -O0 -DDEBUG -g

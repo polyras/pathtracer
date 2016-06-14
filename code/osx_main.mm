@@ -293,6 +293,25 @@ static void ResetGameInputChangeCount(game_input *Input) {
   }
 }
 
+static void Render(osx_state *State) {
+  {
+    std::lock_guard<std::mutex> Lock(State->WorkerMutex);
+    State->CurrentTileIndex.store(0, std::memory_order_relaxed);
+    State->WorkerState = worker_state::work_scheduled;
+  }
+  State->SyncEvent.notify_all();
+
+  for(;;) {
+    std::unique_lock<std::mutex> Lock(State->WorkerMutex);
+    if(State->WorkerState == worker_state::work_completed) {
+      break;
+    }
+    else {
+      State->SyncEvent.wait(Lock);
+    }
+  }
+}
+
 int main() {
   osx_state State;
   State.Running = true;
@@ -349,22 +368,7 @@ int main() {
     UpdateGame(&State.Scene, &State.GameInput, TimeDelta);
 
     if(State.Window.occlusionState & NSWindowOcclusionStateVisible) {
-      {
-        std::lock_guard<std::mutex> Lock(State.WorkerMutex);
-        State.CurrentTileIndex.store(0, std::memory_order_relaxed);
-        State.WorkerState = worker_state::work_scheduled;
-      }
-      State.SyncEvent.notify_all();
-
-      for(;;) {
-        std::unique_lock<std::mutex> Lock(State.WorkerMutex);
-        if(State.WorkerState == worker_state::work_completed) {
-          break;
-        }
-        else {
-          State.SyncEvent.wait(Lock);
-        }
-      }
+      Render(&State);
 
       glTexImage2D(
         GL_TEXTURE_2D,
@@ -394,6 +398,10 @@ int main() {
     else {
       usleep(10000);
     }
+
+    #if BENCHMARK
+    printf("Time delta: %llu ms\n", TimeDelta/1000);
+    #endif
 
     State.LastFrameTime = NewFrameTime;
   }
