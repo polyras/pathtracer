@@ -195,3 +195,11 @@ inline memsize MinMemsize(memsize A, memsize B) {
 inline memsize RoundFP32(fp32 R) {
   return static_cast<memsize>(floor(R + 0.5f));
 }
+
+struct quadratic_result {
+  bool SolutionExists;
+  fp32 Root1;
+  fp32 Root2;
+};
+
+quadratic_result SolveQuadratic(fp32 A, fp32 B, fp32 C);

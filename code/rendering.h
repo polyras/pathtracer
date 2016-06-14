@@ -33,14 +33,26 @@ struct triangle {
   v3fp32 CalcNormal() const;
 };
 
+struct sphere {
+  v3fp32 Pos;
+  fp32 Radius;
+  v3fp32 Intensity;
+  color Albedo;
+  bool Intersect(ray Ray, fp32 *Distance) const;
+  v3fp32 CalcNormal(v3fp32 SurfacePoint) const;
+};
+
 struct scene {
   camera Camera;
   sun Sun;
   triangle Triangles[50];
   memsize TriangleCount;
+  sphere Spheres[10];
+  memsize SphereCount;
 
   scene();
   void AddTriangle(v3fp32 V0, v3fp32 V1, v3fp32 V2, color Albedo);
+  void AddSphere(v3fp32 Position, fp32 Radius, v3fp32 Intensity, color Albedo);
 };
 
 struct resolution {

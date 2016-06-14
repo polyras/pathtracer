@@ -7,6 +7,8 @@
 #define SAMPLE_COUNT 32
 #define BOUNCE_COUNT 1
 
+static const fp32 Epsilon = 0.0001f;
+
 struct tile {
   v2ui16 Pos;
   v2ui16 Size;
@@ -42,13 +44,23 @@ void scene::AddTriangle(v3fp32 V0, v3fp32 V1, v3fp32 V2, color Albedo) {
   TriangleCount++;
 }
 
+void scene::AddSphere(v3fp32 Pos, fp32 Radius, v3fp32 Intensity, color Albedo) {
+  DebugAssert(SphereCount != sizeof(Spheres) / sizeof(sphere));
+  sphere *S = Spheres + SphereCount;
+  S->Pos = Pos;
+  S->Radius = Radius;
+  S->Intensity = Intensity;
+  S->Albedo = Albedo;
+  SphereCount++;
+}
+
 bool triangle::Intersect(ray Ray, fp32 *Distance) const {
   v3fp32 VertexB = Vertices[1] - Vertices[0];
   v3fp32 VertexC = Vertices[2] - Vertices[0];
   v3fp32 RayDirectionCrossVertexC = v3fp32::Cross(Ray.Direction, VertexC);
   fp32 KDet = v3fp32::Dot(RayDirectionCrossVertexC, VertexB);
 
-  if(KDet > -0.0001) {
+  if(KDet > -Epsilon) {
     return false;
   }
   fp32 KDetInv = 1.0f / KDet;
@@ -70,13 +82,48 @@ bool triangle::Intersect(ray Ray, fp32 *Distance) const {
   }
 
   fp32 T = KDetInv * v3fp32::Dot(RayOriginCrossVertexB, VertexC);
-  if(T < 0.0001) {
+  if(T < Epsilon) {
     return false;
   }
 
   *Distance = T;
 
   return true;
+}
+
+bool sphere::Intersect(ray Ray, fp32 *Distance) const {
+  const v3fp32 LocalRayOrigin = Ray.Origin - Pos;
+  const fp32 A = Ray.Direction.X * Ray.Direction.X + Ray.Direction.Y * Ray.Direction.Y + Ray.Direction.Z * Ray.Direction.Z;
+  const fp32 B = 2 * (LocalRayOrigin.X * Ray.Direction.X + LocalRayOrigin.Y * Ray.Direction.Y + LocalRayOrigin.Z * Ray.Direction.Z);
+  const fp32 C = LocalRayOrigin.X * LocalRayOrigin.X + LocalRayOrigin.Y * LocalRayOrigin.Y + LocalRayOrigin.Z * LocalRayOrigin.Z - Radius * Radius;
+  quadratic_result QuadraticResult = SolveQuadratic(A, B, C);
+
+  if(!QuadraticResult.SolutionExists) {
+    return false;
+  }
+
+  if(QuadraticResult.Root1 > Epsilon) {
+    if(QuadraticResult.Root2 > Epsilon) {
+      *Distance = MinFP32(QuadraticResult.Root1, QuadraticResult.Root2);
+    }
+    else {
+      *Distance = QuadraticResult.Root1;
+    }
+    return true;
+  }
+  else if(QuadraticResult.Root2 > Epsilon) {
+    *Distance = QuadraticResult.Root2;
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+v3fp32 sphere::CalcNormal(v3fp32 SurfacePoint) const {
+  v3fp32 Dif = SurfacePoint - Pos;
+  Dif.Normalize();
+  return Dif;
 }
 
 v3fp32 triangle::CalcNormal() const {
@@ -88,31 +135,35 @@ v3fp32 triangle::CalcNormal() const {
 }
 
 static trace_result Trace(scene const *Scene, ray Ray) {
-  memsize ClosestTriangleIndex = MEMSIZE_MAX;
   fp32 ShortestDistance = FP32_MAX;
 
+  trace_result Result = { .Hit = false };
   fp32 TestDistance;
+
   for(memsize I=0; I<Scene->TriangleCount; ++I) {
     triangle const *Triangle = Scene->Triangles + I;
     if(Triangle->Intersect(Ray, &TestDistance)) {
       if(TestDistance < ShortestDistance) {
-        ClosestTriangleIndex = I;
         ShortestDistance = TestDistance;
+        Result.Hit = true;
+        Result.Position = Ray.Origin + Ray.Direction * ShortestDistance;
+        Result.Normal = Triangle->CalcNormal();
+        Result.Albedo = Triangle->Albedo;
       }
     }
   }
 
-  trace_result Result;
-  if(ClosestTriangleIndex != MEMSIZE_MAX) {
-    Result.Hit = true;
-    Result.Hit = ShortestDistance != FP32_MAX;
-    Result.Position = Ray.Origin + Ray.Direction * ShortestDistance;
-    triangle const *Triangle = Scene->Triangles + ClosestTriangleIndex;
-    Result.Normal = Triangle->CalcNormal();
-    Result.Albedo = Triangle->Albedo;
-  }
-  else {
-    Result.Hit = false;
+  for(memsize I=0; I<Scene->SphereCount; ++I) {
+    sphere const *Sphere = Scene->Spheres + I;
+    if(Sphere->Intersect(Ray, &TestDistance)) {
+      if(TestDistance < ShortestDistance) {
+        ShortestDistance = TestDistance;
+        Result.Hit = true;
+        Result.Position = Ray.Origin + Ray.Direction * ShortestDistance;
+        Result.Normal = Sphere->CalcNormal(Result.Position);
+        Result.Albedo = Sphere->Albedo;
+      }
+    }
   }
 
   return Result;

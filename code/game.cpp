@@ -81,7 +81,7 @@ static void SetupOrangeBox(scene *Scene) {
 }
 
 static void SetupRedBox(scene *Scene) {
-  v3fp32 Pos(0.0f, 0.5f, 4.5f);
+  v3fp32 Pos(1.0f, 0.5f, 6.5f);
   color Color(255, 20, 20);
   AddCube(Scene, 1.0f, Pos, Color);
 }
@@ -95,6 +95,14 @@ static void SetupGround(scene *Scene) {
   );
 }
 
+static void SetupBlueSphere(scene *Scene) {
+  v3fp32 Position(0.0f, 0.5f, 4.0f);
+  v3fp32 Intensity(0.0f, 0.0f, 0.0f);
+  color Albedo(19, 100, 242);
+  fp32 Radius = 0.5f;
+  Scene->AddSphere(Position, Radius, Intensity, Albedo);
+}
+
 void InitGame(scene *Scene) {
   camera *Cam = &Scene->Camera;
   Cam->Position.Set(0.0f, 1.6f, 0.0f);
@@ -106,6 +114,7 @@ void InitGame(scene *Scene) {
   SetupGreenBox(Scene);
   SetupRedBox(Scene);
   SetupOrangeBox(Scene);
+  SetupBlueSphere(Scene);
 
   // Ground
   SetupGround(Scene);
