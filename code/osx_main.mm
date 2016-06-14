@@ -368,7 +368,13 @@ int main() {
     UpdateGame(&State.Scene, &State.GameInput, TimeDelta);
 
     if(State.Window.occlusionState & NSWindowOcclusionStateVisible) {
+      #if BENCHMARK
+      uusec64 RenderStartTime = GetTime();
+      #endif
       Render(&State);
+      #if BENCHMARK
+      printf("Render time: %llu ms\n", (GetTime()-RenderStartTime)/1000);
+      #endif
 
       glTexImage2D(
         GL_TEXTURE_2D,
@@ -398,10 +404,6 @@ int main() {
     else {
       usleep(10000);
     }
-
-    #if BENCHMARK
-    printf("Time delta: %llu ms\n", TimeDelta/1000);
-    #endif
 
     State.LastFrameTime = NewFrameTime;
   }
