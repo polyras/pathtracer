@@ -33,6 +33,7 @@ scene::scene() {
 }
 
 void scene::AddTriangle(v3fp32 V0, v3fp32 V1, v3fp32 V2, color Albedo) {
+  DebugAssert(TriangleCount != sizeof(Triangles) / sizeof(triangle));
   triangle *T = Triangles + TriangleCount;
   T->Vertices[0] = V0;
   T->Vertices[1] = V1;

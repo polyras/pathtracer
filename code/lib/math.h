@@ -59,6 +59,10 @@ struct v3fp32 {
     Z = NewZ;
   }
 
+  bool IsZero() {
+    return X == 0 && Y == 0 && Z == 0;
+  }
+
   fp32 CalcSquaredLength() const {
     return (
       X * X +

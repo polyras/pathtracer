@@ -3,12 +3,21 @@
 #include <OpenGL/gl.h>
 #include <new>
 #include <thread>
+#include <sys/time.h>
+#include <unistd.h>
 #include "lib/math.h"
 #include "lib/assert.h"
 #include "rendering.h"
-#include "scene1.h"
+#include "game.h"
 
 #define THREAD_COUNT 4
+
+#define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
+
+#define OSX_KEYCODE_A 0x00
+#define OSX_KEYCODE_S 0x01
+#define OSX_KEYCODE_D 0x02
+#define OSX_KEYCODE_W 0x0D
 
 enum struct worker_state {
   uninitialized,
@@ -26,7 +35,9 @@ struct osx_state {
   resolution WindowResolution;
   resolution RenderResolution;
   scene Scene;
+  game_input GameInput = {};
   memsize TileCount;
+  uusec64 LastFrameTime;
   std::thread Threads[THREAD_COUNT];
   std::atomic<memsize> CurrentTileIndex;
   worker_state WorkerState;
@@ -118,7 +129,47 @@ static NSWindow* CreateOSXWindow(v2ui16 Resolution) {
   return Window;
 }
 
-static void ProcessOSXMessages() {
+static void UpdateGameButton(game_button *Button, NSEventType Type) {
+  switch(Type) {
+    case NSKeyDown:
+      Button->ChangeCount++;
+      Button->Pressed = true;
+      break;
+    case NSKeyUp:
+      Button->ChangeCount++;
+      Button->Pressed = false;
+      break;
+    default:
+      DebugAssert(false);
+  }
+}
+
+static void HandleKeyPress(const NSEvent *Event, game_input *Input) {
+  switch(Event.keyCode) {
+    case OSX_KEYCODE_A:
+      UpdateGameButton(&Input->Left, Event.type);
+      break;
+    case OSX_KEYCODE_S:
+      UpdateGameButton(&Input->Down, Event.type);
+      break;
+    case OSX_KEYCODE_D:
+      UpdateGameButton(&Input->Right, Event.type);
+      break;
+    case OSX_KEYCODE_W:
+      UpdateGameButton(&Input->Up, Event.type);
+      break;
+    default:
+      break;
+  }
+}
+
+static uusec64 GetTime() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (tv.tv_sec*1000000+tv.tv_usec);
+}
+
+static void ProcessOSXMessages(game_input *Input) {
   while(true) {
     NSEvent *Event = [NSApp nextEventMatchingMask:NSAnyEventMask
                                         untilDate:[NSDate distantPast]
@@ -127,11 +178,20 @@ static void ProcessOSXMessages() {
     if(Event == nil) {
       return;
     }
-    // switch(Event.type) {
-    //   default:
-    //     break;
-    // }
-    [NSApp sendEvent:Event];
+    switch(Event.type) {
+      case NSKeyDown:
+      case NSKeyUp: {
+        if(Event.modifierFlags & NSCommandKeyMask) {
+          [NSApp sendEvent:Event];
+        } else {
+          HandleKeyPress(Event, Input);
+        }
+        break;
+      }
+      default:
+        [NSApp sendEvent:Event];
+        break;
+    }
   }
 }
 
@@ -227,6 +287,12 @@ static void DestroyThreads(osx_state *State) {
   }
 }
 
+static void ResetGameInputChangeCount(game_input *Input) {
+  for(memsize I = 0; I < ArrayCount(Input->States); ++I) {
+    Input->States[I].ChangeCount = 0;
+  }
+}
+
 int main() {
   osx_state State;
   State.Running = true;
@@ -236,7 +302,8 @@ int main() {
   State.RenderResolution.Dimension.Set(160, 120);
   InitPixelBuffer(&State);
 
-  InitScene1(&State.Scene);
+  InitGame(&State.Scene);
+  State.LastFrameTime = GetTime();
 
   NSApplication *App = [NSApplication sharedApplication];
   PathtracerAppDelegate *AppDelegate = [[PathtracerAppDelegate alloc] init];
@@ -274,7 +341,12 @@ int main() {
   CreateThreads(&State);
 
   while(State.Running) {
-    ProcessOSXMessages();
+    ResetGameInputChangeCount(&State.GameInput);
+    ProcessOSXMessages(&State.GameInput);
+
+    uusec64 NewFrameTime = GetTime();
+    uusec64 TimeDelta = NewFrameTime - State.LastFrameTime;
+    UpdateGame(&State.Scene, &State.GameInput, TimeDelta);
 
     if(State.Window.occlusionState & NSWindowOcclusionStateVisible) {
       {
@@ -322,6 +394,8 @@ int main() {
     else {
       usleep(10000);
     }
+
+    State.LastFrameTime = NewFrameTime;
   }
 
   {
