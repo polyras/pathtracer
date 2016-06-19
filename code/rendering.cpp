@@ -70,6 +70,11 @@ void scene::AddSphere(v3fp32 Pos, fp32 Radius, v3fp32 Intensity, color Albedo) {
   SphereCount++;
 }
 
+static inline v3fp32 ColorToV3FP32(color C) {
+  v3fp32 Result(C.R, C.G, C.B);
+  return Result;
+}
+
 static object_trace_result TraceObject(scene const *Scene, ray Ray) {
   fp32 ShortestDistance = FP32_MAX;
 
@@ -235,11 +240,7 @@ static v3fp32 CalcRadiance(scene const *Scene, ray Ray, memsize Depth) {
     IndirectLight *= (2.0f * M_PI) / SAMPLE_COUNT;
   }
 
-  v3fp32 Albedo(
-    static_cast<fp32>(ObjectTraceResult.Albedo.R) * Inv255,
-    static_cast<fp32>(ObjectTraceResult.Albedo.G) * Inv255,
-    static_cast<fp32>(ObjectTraceResult.Albedo.B) * Inv255
-  );
+  v3fp32 Albedo = ColorToV3FP32(ObjectTraceResult.Albedo) * Inv255;
   v3fp32 ReflectedRadiance = v3fp32::Hadamard(
     DirectLight + IndirectLight,
     Albedo * PI_INV
