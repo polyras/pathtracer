@@ -14,7 +14,7 @@ ROOT = $(realpath ./..)
 CODE_ROOT = $(ROOT)/code
 
 OBJ_CPP_SOURCES = osx_main.mm
-CPP_SOURCES = rendering.cpp game.cpp lib/assert.cpp lib/math.cpp
+CPP_SOURCES = rendering.cpp game.cpp primitives.cpp lib/assert.cpp lib/math.cpp
 CPP_OBJS = $(patsubst %.cpp, %.o, $(CPP_SOURCES))
 OBJ_CPP_OBJS = $(patsubst %.mm, %.o, $(OBJ_CPP_SOURCES))
 OBJS = $(OBJ_CPP_OBJS) $(CPP_OBJS)
